@@ -1,0 +1,24 @@
+{
+  "product_types": ["Coffee", "Snack", "Tea", "Spice", "Pasta"],
+  "top10_attributes": [
+    "brand",
+    "flavor",
+    "item_weight",
+    "ingredients",
+    "dietary_preference",
+    "package_type",
+    "allergen_free",
+    "origin",
+    "servings_per_container",
+    "expiration_date"
+  ],
+  "band_a_critical_6": [
+    "brand",
+    "flavor",
+    "item_weight",
+    "ingredients",
+    "dietary_preference",
+    "package_type"
+  ],
+  "title_formula": "[Brand] [Product Type], [Flavor], [Weight], [Dietary Feature]"
+}

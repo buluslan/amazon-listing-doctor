@@ -1,0 +1,24 @@
+{
+  "product_types": ["Yoga Mat", "Dumbbell", "Bike", "Camping Tent", "Water Bottle"],
+  "top10_attributes": [
+    "brand",
+    "material",
+    "color",
+    "size",
+    "item_weight",
+    "skill_level",
+    "age_range",
+    "activity",
+    "water_resistance",
+    "grip_size"
+  ],
+  "band_a_critical_6": [
+    "brand",
+    "material",
+    "color",
+    "size",
+    "item_weight",
+    "skill_level"
+  ],
+  "title_formula": "[Brand] [Product Type] for [Activity], [Material/Size], [Color], [Skill Level]"
+}

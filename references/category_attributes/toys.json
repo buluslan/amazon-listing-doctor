@@ -1,0 +1,24 @@
+{
+  "product_types": ["Building Set", "Board Game", "Action Figure", "Puzzle", "Toy Vehicle"],
+  "top10_attributes": [
+    "brand",
+    "age_range",
+    "material",
+    "color",
+    "number_of_players",
+    "theme",
+    "educational_value",
+    "battery_required",
+    "item_dimensions",
+    "assembly_required"
+  ],
+  "band_a_critical_6": [
+    "brand",
+    "age_range",
+    "material",
+    "color",
+    "number_of_players",
+    "theme"
+  ],
+  "title_formula": "[Brand] [Product Type] for [Age Range], [Theme/Feature], [Material], [Color]"
+}

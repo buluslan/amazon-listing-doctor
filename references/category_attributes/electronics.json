@@ -1,0 +1,24 @@
+{
+  "product_types": ["Earbuds", "Headphones", "Speaker", "Charger", "Cable"],
+  "top10_attributes": [
+    "brand",
+    "color",
+    "wireless_technology",
+    "battery_life",
+    "water_resistance",
+    "noise_cancellation",
+    "connector_type",
+    "model",
+    "item_weight",
+    "material"
+  ],
+  "band_a_critical_6": [
+    "brand",
+    "color",
+    "wireless_technology",
+    "battery_life",
+    "water_resistance",
+    "noise_cancellation"
+  ],
+  "title_formula": "[Brand] [Product Type] [Key Spec], [Key Feature], [Color/Size]"
+}

@@ -1,0 +1,24 @@
+{
+  "product_types": ["Dog Food", "Cat Toy", "Pet Bed", "Leash", "Litter"],
+  "top10_attributes": [
+    "brand",
+    "pet_type",
+    "breed_size",
+    "flavor",
+    "material",
+    "item_weight",
+    "life_stage",
+    "special_diet",
+    "color",
+    "age_range"
+  ],
+  "band_a_critical_6": [
+    "brand",
+    "pet_type",
+    "breed_size",
+    "flavor",
+    "material",
+    "item_weight"
+  ],
+  "title_formula": "[Brand] [Product Type] for [Pet Type/Breed], [Flavor/Material], [Weight], [Life Stage]"
+}

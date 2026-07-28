@@ -1,0 +1,24 @@
+{
+  "product_types": ["T-Shirt", "Jeans", "Dress", "Jacket", "Shoes"],
+  "top10_attributes": [
+    "brand",
+    "color",
+    "size",
+    "material",
+    "fit_type",
+    "sleeve_length",
+    "neckline",
+    "pattern",
+    "closure_type",
+    "care_instructions"
+  ],
+  "band_a_critical_6": [
+    "brand",
+    "color",
+    "size",
+    "material",
+    "fit_type",
+    "sleeve_length"
+  ],
+  "title_formula": "[Brand] [Product Type] for [Gender/Audience], [Material/Fit], [Color], [Size]"
+}

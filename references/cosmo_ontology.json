@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "scope": "open-source doctor · COSMO intent-coverage ontology (public, built on the COSMO paper spirit)",
+    "note": "COSMO (Amazon's commonsense knowledge graph, WWW 2024) has no official audit weights. This is a community concept-coverage check, NOT an official COSMO score. It measures whether a listing speaks to user intent across 4 commonsense dimensions, so sellers can spot listings that only stack product-attribute words and ignore why/for-whom/how users actually buy.",
+    "dimensions": {
+      "use_case": "where / what the product is used for (scenario + utility)",
+      "audience": "who the product is for (persona)",
+      "goal": "why the user buys it / what outcome they want (COSMO's signature dimension — often missing from attribute-stuffed listings)",
+      "constraint": "limits / qualifiers (when/where it does NOT apply)"
+    },
+    "scoring": "score = target-line weighted (like alexa); coverage_ratio = matched/total (honest precision). goal is intentionally hard — low goal coverage flags attribute-stuffed listings.",
+    "matching": "substring match (covers plural/inflection: comfort→comfortable, commute→commutes). concept words chosen from real listing vocabulary, not abstract phrases."
+  },
+  "_common": {
+    "use_case": [
+      "travel", "commute", "office", "work", "home", "gym", "workout",
+      "running", "outdoor", "sport", "gaming", "sleep", "study", "cooking",
+      "cleaning", "party", "hiking", "camping", "jogging", "driving", "fitness"
+    ],
+    "audience": [
+      "men", "women", "kids", "children", "senior", "baby", "professional",
+      "student", "athlete", "beginner", "family", "office worker", "traveler",
+      "pet owner", "homeowner", "teen"
+    ],
+    "goal": [
+      "comfort", "quiet", "safe", "health", "organize", "easy", "secure",
+      "fresh", "soft", "smooth", "bright", "clear", "strong", "warm", "cool",
+      "protect", "relax", "energ", "focus", "calm", "enjoy", "relieve"
+    ],
+    "constraint": [
+      "waterproof", "leakproof", "portable", "washable", "rechargeable",
+      "cordless", "lightweight", "durable", "breathable", "budget", "premium",
+      "eco", "compact", "heavy duty", "travel size", "easy to use",
+      "low maintenance", "non toxic", "splashproof", "sweatproof"
+    ]
+  }
+}

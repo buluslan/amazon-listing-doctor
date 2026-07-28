@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 运行产物 / 本地状态(不入库)
+reports/
+.flow_state/
+*.log
+*.tmp
+listing.json
+report.json
+
+# 编辑器 / IDE
+.vscode/
+.idea/
+*.swp

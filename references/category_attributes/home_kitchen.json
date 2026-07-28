@@ -1,0 +1,24 @@
+{
+  "product_types": ["Cookware Set", "Knife", "Cutting Board", "Storage Container", "Kitchen Tool"],
+  "top10_attributes": [
+    "brand",
+    "material",
+    "color",
+    "capacity",
+    "item_dimensions",
+    "item_weight",
+    "dishwasher_safe",
+    "bpa_free",
+    "heat_resistant",
+    "shape"
+  ],
+  "band_a_critical_6": [
+    "brand",
+    "material",
+    "color",
+    "capacity",
+    "item_dimensions",
+    "item_weight"
+  ],
+  "title_formula": "[Brand] [Product Type], [Material/Capacity], [Key Feature], [Color/Size]"
+}

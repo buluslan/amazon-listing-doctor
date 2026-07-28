@@ -1,0 +1,24 @@
+{
+  "product_types": ["Drill", "Wrench", "Screwdriver Set", "Saw", "Tool Kit"],
+  "top10_attributes": [
+    "brand",
+    "material",
+    "color",
+    "item_weight",
+    "power_source",
+    "voltage",
+    "blade_length",
+    "grip_type",
+    "item_dimensions",
+    "warranty"
+  ],
+  "band_a_critical_6": [
+    "brand",
+    "material",
+    "color",
+    "item_weight",
+    "power_source",
+    "voltage"
+  ],
+  "title_formula": "[Brand] [Product Type], [Material/Power Source], [Key Spec], [Size/Color]"
+}

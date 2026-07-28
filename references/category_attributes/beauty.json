@@ -1,0 +1,24 @@
+{
+  "product_types": ["Skincare Set", "Serum", "Shampoo", "Cosmetics", "Lotion"],
+  "top10_attributes": [
+    "brand",
+    "skin_type",
+    "scent",
+    "formulation",
+    "volume",
+    "ingredients",
+    "application_area",
+    "age_range",
+    "cruelty_free",
+    "special_ingredients"
+  ],
+  "band_a_critical_6": [
+    "brand",
+    "skin_type",
+    "scent",
+    "formulation",
+    "volume",
+    "ingredients"
+  ],
+  "title_formula": "[Brand] [Product Type] for [Skin/Hair Type], [Key Ingredient], [Scent], [Volume]"
+}

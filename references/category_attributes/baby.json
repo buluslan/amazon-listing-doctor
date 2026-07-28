@@ -1,0 +1,24 @@
+{
+  "product_types": ["Diaper", "Baby Bottle", "Stroller", "Baby Food", "Toy"],
+  "top10_attributes": [
+    "brand",
+    "age_range",
+    "material",
+    "color",
+    "bpa_free",
+    "hypoallergenic",
+    "size",
+    "item_weight",
+    "safety_certification",
+    "washable"
+  ],
+  "band_a_critical_6": [
+    "brand",
+    "age_range",
+    "material",
+    "color",
+    "bpa_free",
+    "hypoallergenic"
+  ],
+  "title_formula": "[Brand] [Product Type] for [Age Range], [Material/Safety], [Color], [Size]"
+}
