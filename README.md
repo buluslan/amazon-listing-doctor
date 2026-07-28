@@ -27,7 +27,7 @@
 
 Amazon Listing Doctor 是一款 **Agent 原生** 的亚马逊 Listing 质检 Skill,适配 Claude Code、OpenCode 等主流 AI Coding Agent。基于四大知识底座(CDQ / A9 / COSMO / Alexa for Shopping)对任意 Listing 做全身体检 + 打分,输出多维度健康报告。**零依赖、零 API Key**,纯标准库 Python,clone 下来就能跑。
 
-**只诊断不改写** —— 告诉你"哪里有问题、该改什么",改写交给你自己或付费版 `amazon-listing-forge`。
+**只诊断不改写** —— 告诉你"哪里有问题、该改什么",改写由你自己决定。
 
 **兼容性**:基于命令行调用,任何能执行 shell 的 Agent 都能用 —— Claude Code(作为 Skill 加载)/ OpenCode / Cursor / Windsurf / 直接终端。
 
@@ -91,17 +91,6 @@ python scripts/title_triage.py --file listing.json     # 标题词组分诊
 - **COSMO**:扫全文匹配 `references/cosmo_ontology.json` 的常识概念,四维覆盖(use_case / audience / goal / constraint)+ 缺失清单
 - **Alexa**:场景 / 人群 / 限制词覆盖(10 类目分词库 + 通用词库,按 category 自动取)
 - **标题词组分诊**:把标题拆成语义词组,按词性 + 合规信号给去向建议(标题必留 / 下移亮点 / 下移五点 / 删除违规),告诉你每个词该去哪——诊断不是改写
-
-## 🔁 与付费版 amazon-listing-forge 的边界
-
-| | doctor(本项目,开源) | forge(付费) |
-|---|---|---|
-| 定位 | 体检仪(发现问题) | 生产线(解决问题) |
-| 动作 | 诊断 + 改进建议 | 生成 + 改写 + 老新对比 |
-| 数据 | 公开版 references(含分品类 Alexa 词库) | 独占增强版(评论冲突词典、精校品类属性、精确 A9 风险库) |
-| 形态 | 本地 skill | 线上服务 |
-
-**doctor 体检出问题 → forge 付费解决。**
 
 ## 📁 结构
 

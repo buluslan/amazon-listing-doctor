@@ -1,7 +1,7 @@
 # Amazon Listing 体检报告
 
 > 本报告由 **amazon-listing-doctor** 生成，依据 Amazon 2026 新规、CDQ 评分模型与 COSMO 意图覆盖度。
-> 占位符 `{{path.to.field}}` 由渲染时替换为实际值。**只诊断不改写**——改进建议指向问题，改写交给你或付费版 `amazon-listing-forge`。
+> 占位符 `{{path.to.field}}` 由渲染时替换为实际值。**只诊断不改写**——改进建议指向问题，改写由你自己决定。
 
 **类目**: `{{meta.category}}` · **站点**: `{{meta.market}}` · **语言**: `{{meta.language}}` · **模式**: `{{meta.mode}}`
 **品牌**: `{{meta.brand}}` · **父体**: `{{meta.is_parent}}` · **子体**: `{{meta.is_variation}}`
@@ -195,7 +195,7 @@
 |---|---|---|---|---|
 | `phrase.phrase` | `phrase.type` | `phrase.action` | `phrase.confidence` | `phrase.reason` |
 
-> ⚠️ 词组切分为启发式（按标点与介词/连词边界）；多词词组命中单一类型时置信降为 low，提示可能混入品类词，建议拆分后仅移动命中部分。本表是改进建议不是改写结果——把词组搬到亮点/五点的成稿请用付费版 `amazon-listing-forge`。
+> ⚠️ 词组切分为启发式（按标点与介词/连词边界）；多词词组命中单一类型时置信降为 low，提示可能混入品类词，建议拆分后仅移动命中部分。本表是改进建议不是改写结果——只给去向，不改写。
 
 ---
 
@@ -218,7 +218,7 @@
 ## 附录 B：待办清单（Action Items）
 
 > 按优先级排列的修复动作。`critical_issues` 为 FAIL 级硬伤，需优先处理。
-> 本报告只告诉你"该改什么"，改写文案请用付费版 `amazon-listing-forge`。
+> 本报告只告诉你"该改什么"，改写由你自己决定。
 
 **严重问题（Critical）**:
 {{compliance_report.critical_issues}}

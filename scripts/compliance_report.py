@@ -179,7 +179,7 @@ def run(data):
         data_for_cdq["image_defects"] = img_r.get("defects", [])
         data_for_cdq["images_count"] = img_r.get("image_count", data.get("images_count", 0))
     # CDQ 注入：把 lint 合规结果喂给 cdq_score，避免它对 title/bullets 保守假设合规
-    # （forge 精度损失点修复：标题违规时 CDQ title 子分此前仍给满分）
+    # （精度修复：标题违规时 CDQ title 子分此前仍给满分）
     if isinstance(title_r, dict) and "compliant" in title_r:
         data_for_cdq["title_compliant"] = title_r["compliant"]
     if isinstance(bul_r, dict) and "compliant" in bul_r:
