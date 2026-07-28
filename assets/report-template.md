@@ -146,7 +146,7 @@
 
 ## 四、Alexa 可发现性
 
-> 评估 Listing 在 Alexa 语音购物场景下的可被发现性。覆盖场景词、人群词、限制词越多，语音命中率越高。
+> 评估 Listing 在 AI 购物助手（Alexa for Shopping）场景下的可被发现性。覆盖场景词、人群词、限制词越多，AI 助手越能理解你的产品并推荐给用户。
 
 **可发现性**: **`{{alexa_discoverability.score}}` / 100**（来源：`{{alexa_discoverability.lexicon_source}}`）
 
