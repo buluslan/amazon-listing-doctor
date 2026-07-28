@@ -1,13 +1,14 @@
 <div align="center">
 
 <!-- Banner: 把一张 banner 图放进 assets/banner.png 后,去掉下一行的注释即可显示 -->
-<!-- <img src="assets/banner.png" alt="Amazon Listing Doctor" width="100%"> -->
+<img width="2172" height="724" alt="003ccd81-adaa-4cc3-8244-ed9cb7930657" src="https://github.com/user-attachments/assets/88a64a44-cb0a-40a6-be34-a3dceddbd8ab" />
+
 
 # 🩺 Amazon Listing Doctor
 
-**基于 CDQ / A9 / COSMO / Alexa 四大底座的亚马逊 Listing 全身体检 + 打分 Skill**
+**根据亚马逊7月27日正式上线的标题新规，基于 CDQ / A9 / COSMO / Alexa 四大底座的亚马逊 Listing 全身体检 + 打分 Skill**
 
-**想了解更多最新AI行业动态,AI+电商/广告的行业实践方法,人与AI如何协作共生的思考,请关注公众号:【新西楼】**
+**想了解更多最新AI行业动态,AI+电商/广告的行业实践方法,人与AI如何协作共生的思考,请关注公众号:【新西楼.AI】**
 
 ![qrcode_for_gh_e3b954bd3859_258](https://github.com/user-attachments/assets/d8f068d9-c4f8-46c7-914c-fbcab5d52f2a)
 
