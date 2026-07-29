@@ -27,11 +27,11 @@
 
 ## 项目简介
 
-Amazon Listing Doctor 是一款 **Agent 原生** 的亚马逊 Listing 质检 Skill,适配 Claude Code、OpenCode 等主流 AI Coding Agent。基于四大知识底座(CDQ / A9 / COSMO / Alexa for Shopping)对任意 Listing 做全身体检 + 打分,输出多维度健康报告。**零依赖、零 API Key**,纯标准库 Python,clone 下来就能跑。
+Amazon Listing Doctor 是一款 **Agent 原生** 的亚马逊 Listing 质检 Skill,适配各类 AI Coding Agent。基于四大知识底座(CDQ / A9 / COSMO / Alexa for Shopping)对任意 Listing 做全身体检 + 打分,输出多维度健康报告。**零依赖、零 API Key**,纯标准库 Python,clone 下来就能跑。
 
 **只诊断不改写** —— 告诉你"哪里有问题、该改什么",改写由你自己决定。
 
-**兼容性**:基于命令行调用,任何能执行 shell 的 Agent 都能用 —— Claude Code(作为 Skill 加载)/ OpenCode / Cursor / Windsurf / 直接终端。
+**兼容性**:基于命令行调用,任何能执行 shell 的 Agent 都能用 —— 通过 Skill 加载 / AGENTS.md 注入 / 直接终端调用均可。
 
 ---
 

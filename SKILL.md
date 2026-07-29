@@ -83,7 +83,7 @@ python scripts/compliance_report.py --file listing.json
 
 一次跑出全部维度：合规体检 + CDQ 评分 + A9 收录 + COSMO 意图覆盖 + Alexa 可发现性 + 图片缺陷 + 关键词分层覆盖。退出码 0=总体合规 / 1=有 FAIL。
 
-- **图片缺陷**：需 listing 含 `images` 字段（每张含 width/height/has_watermark/is_white_background/is_square）——由 Claude 原生视觉分析用户贴的图后填入。无图自动跳过。
+- **图片缺陷**：需 listing 含 `images` 字段（每张含 width/height/has_watermark/is_white_background/is_square）——由具备视觉能力的 LLM 分析用户贴图后填入，或用户从 Seller Central 后台导出图片组 JSON 自填。无图自动跳过。
 - **COSMO**：扫全文匹配 `references/cosmo_ontology.json` 的概念词，算四维覆盖。`goal` 维度故意偏难——listing 常堆属性词而不写"用户目标"，goal 覆盖率低正是诊断价值（指出 listing 缺意图层表达）。
 - **标题词组分诊**：把标题拆成语义词组（按标点 + 介词边界），按词性 + 合规信号给每个词组去向建议（标题必留 / 下移亮点 / 下移五点 / 删除违规），confidence=low 的词组留人工复核。只给去向不给改写。
 
@@ -162,7 +162,7 @@ python scripts/compliance_report.py --file listing.json
 ## 重要原则
 
 - **合规校验全脚本化**：绝不靠"请避免重复词"这类措辞约束 LLM，必须跑脚本（LLM 会跳过文字约束）
-- **零依赖自包含**：不绑任何特定外部 skill。输入靠用户提供（粘贴/导出为主），图片靠 Claude 原生视觉；联网抓取只是可选增强且不写死工具名。用"陌生用户 clone 下来就能跑"检验设计
+- **零依赖自包含**：不绑任何特定外部 skill。输入靠用户提供（粘贴/导出为主），图片靠视觉 LLM 分析；联网抓取只是可选增强且不写死工具名。用"陌生用户 clone 下来就能跑"检验设计
 - **数据分层（v0.2.0）**：前台数据靠 SellerSprite MCP / 粘贴，后台数据必须 Seller Central 导出；缺字段优雅降级，不阻塞流程
 - **多语言虚词豁免（v0.2.0）**：bullets 关键词堆砌按 `language` 字段取虚词表；德语 listing 不再因 mit/für/durch/aus 等介词被误判堆砌。promo/subjective 黑名单覆盖 de/fr/it/es
 - **COSMO 诚实标注**：COSMO 无官方质检权重，本 skill 的 COSMO 维度是基于公开论文（WWW 2024）精神的社区概念覆盖诊断，**不是官方 COSMO 分**。报告里如实标注
