@@ -9,6 +9,23 @@
 # 输入：完整 listing（stdin JSON 优先 / --data / --file）
 # 输出：stdout 一个 JSON 对象（完整 output-template.json 结构）
 # 退出码：0=总体合规 / 1=有 FAIL
+#
+# 数据分层（2026-07-29）：
+#   - 前台（frontend）: title / bullets / description / images / has_a_plus /
+#                       brand / category / market / language / is_parent / is_variation
+#     可由 SellerSprite MCP（asin_detail）取数
+#   - 后台（backend）:  item_highlights / backend_search_terms / attributes_filled /
+#                       attributes_top10_expected / band_a_critical_6
+#     必须从 Seller Central 后台导出
+#   - 评分维度对各字段的最低依赖：
+#     * COSMO / Alexa:  title + 至少 1 个意图来源（bullets / item_highlights / description）
+#     * CDQ:             title（合规判定） + attributes_filled 或 attributes_top10_expected +
+#                        bullets（≥3） + images（含元数据）+ has_a_plus
+#     * Indexability:    title（核心词前置） + backend_search_terms + attributes
+#
+# 降级原则（2026-07-29）：
+#   - 缺关键字段时，相关评分维度显式返回 score=null + reason=字段缺失，不强行给 0/100
+#   - 汇总报告增加 data_coverage 板块：标记已收字段、缺失字段、可解锁维度
 
 import sys
 import json
@@ -23,6 +40,157 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 # 插入脚本目录到 sys.path，便于 import 同目录其他脚本
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
+
+
+# ---------------------------------------------------------------------------
+# 数据分层定义
+# ---------------------------------------------------------------------------
+# 每个维度依赖的"关键字段"。缺失时该维度降级为 score=null。
+DIMENSION_REQUIRED_FIELDS = {
+    "cosmo_intent": ["title"],
+    "alexa_discoverability": ["title"],
+    "cdq_score": ["title_compliant_status"],  # 由 compliance_report 内部注入
+    "indexability": ["title"],
+    "backend_hygiene": ["backend_search_terms"],
+    "attribute_completeness": ["attributes_top10_expected"],
+    "image_defect": ["images"],
+}
+
+
+# 前台 vs 后台字段清单（用于 data_coverage 报告）
+FRONTEND_FIELDS = [
+    ("title", "商品标题（前台核心）"),
+    ("bullets", "五点描述（前台）"),
+    ("description", "产品详情 / A+ 描述（前台）"),
+    ("images", "图片组（含 width/height/is_white_background 等元数据）"),
+    ("brand", "品牌名"),
+    ("category", "类目"),
+    ("has_a_plus", "A+ 内容存在性（badge.ebc）"),
+    ("market", "目标站点"),
+    ("language", "目标语言"),
+]
+
+BACKEND_FIELDS = [
+    ("item_highlights", "商品亮点（≤125 字符，A9 强索引）"),
+    ("backend_search_terms", "后台搜索词（≤250 字节）"),
+    ("attributes_filled", "已填属性列表（structured attributes）"),
+    ("attributes_top10_expected", "类目 Top10 必填属性清单"),
+    ("band_a_critical_6", "Band A 关键 6 项"),
+    ("is_parent", "父 ASIN 标记"),
+    ("is_variation", "子体 ASIN 标记"),
+    ("parent_sku_attrs", "父子体属性映射（父→子 SKU 配色/尺寸）"),
+]
+
+
+def _is_present(value):
+    """字段是否"非空"。None / 空字符串 / 空列表 / 空 dict 都视为缺失。"""
+    if value is None:
+        return False
+    if isinstance(value, str) and not value.strip():
+        return False
+    if isinstance(value, (list, dict, tuple)) and len(value) == 0:
+        return False
+    return True
+
+
+def _assess_data_coverage(data):
+    """扫描 listing 输入，输出数据覆盖度报告。
+
+    Returns:
+        dict: {
+          frontend: {provided: [...], missing: [...]},
+          backend:  {provided: [...], missing: [...]},
+          overall:  "minimal" | "partial" | "complete",
+          unlock_dimensions: [...],
+        }
+    """
+    if not isinstance(data, dict):
+        data = {}
+
+    frontend_provided, frontend_missing = [], []
+    for key, label in FRONTEND_FIELDS:
+        if _is_present(data.get(key)):
+            frontend_provided.append(key)
+        else:
+            frontend_missing.append({"field": key, "label": label})
+
+    backend_provided, backend_missing = [], []
+    for key, label in BACKEND_FIELDS:
+        if _is_present(data.get(key)):
+            backend_provided.append(key)
+        else:
+            backend_missing.append({"field": key, "label": label})
+
+    total = len(FRONTEND_FIELDS) + len(BACKEND_FIELDS)
+    got = len(frontend_provided) + len(backend_provided)
+    ratio = got / total if total else 0.0
+
+    if ratio < 0.3:
+        overall = "minimal"
+    elif ratio < 0.7:
+        overall = "partial"
+    else:
+        overall = "complete"
+
+    # 评分维度解锁清单：补齐这些字段后，可解锁对应评分
+    unlock = []
+    if not _is_present(data.get("item_highlights")):
+        unlock.append({
+            "field": "item_highlights",
+            "label": "补 item_highlights → 解锁 A9 收录高亮强度 + COSMO 覆盖广度",
+            "source": "Seller Central 后台导出",
+        })
+    if not _is_present(data.get("backend_search_terms")):
+        unlock.append({
+            "field": "backend_search_terms",
+            "label": "补 backend_search_terms → 解锁 backend 卫生分 + A9 长尾词覆盖",
+            "source": "Seller Central 后台导出",
+        })
+    if not (_is_present(data.get("attributes_filled"))
+            and _is_present(data.get("attributes_top10_expected"))):
+        unlock.append({
+            "field": "attributes_filled + attributes_top10_expected",
+            "label": "补 structured attributes → 解锁 CDQ 30% 权重 + A9 属性完整度",
+            "source": "Seller Central 后台导出 或 类目属性文件 category_attributes/<cat>.json",
+        })
+    if not (_is_present(data.get("is_parent"))
+            and _is_present(data.get("is_variation"))):
+        unlock.append({
+            "field": "is_parent + is_variation",
+            "label": "补父子体标记 → 解锁 CDQ variation 20% 权重 + 父体属性隔离检查",
+            "source": "Seller Central 父子体关系",
+        })
+    if not _is_present(data.get("images")):
+        unlock.append({
+            "field": "images",
+            "label": "补图片组（含 width/height/is_white_background/is_square 元数据）→ 解锁 CDQ 15% 权重",
+            "source": "Claude 视觉分析用户贴图 后填入，或 SellerSprite imageUrl/zoomImageUrl",
+        })
+
+    return {
+        "frontend": {
+            "provided": frontend_provided,
+            "missing": frontend_missing,
+            "provided_count": len(frontend_provided),
+            "total_count": len(FRONTEND_FIELDS),
+        },
+        "backend": {
+            "provided": backend_provided,
+            "missing": backend_missing,
+            "provided_count": len(backend_provided),
+            "total_count": len(BACKEND_FIELDS),
+        },
+        "ratio": round(ratio, 4),
+        "overall": overall,
+        "unlock_dimensions": unlock,
+    }
+
+
+def _safe_score(value, reason=None):
+    """评分降级封装：score=null + reason，否则原值透传。"""
+    if value is None:
+        return {"score": None, "available": False, "reason": reason or "input insufficient"}
+    return {"score": value, "available": True}
 
 
 def _try_import(name):
@@ -150,6 +318,8 @@ def run(data):
     Returns:
         dict: 与 assets/output-template.json 结构对齐的最终报告。
         任一依赖脚本缺失或报错，对应字段回退到模板空值，不中断汇总。
+        增加 data_coverage 板块（数据分层 + 缺失字段 + 可解锁维度）。
+        评分降级：缺关键字段时，相关维度显式标 score=null + reason=字段缺失。
     """
     # 延迟 import：运行时解析，其他脚本可能尚未生成
     lint_title = _try_import("lint_title")
@@ -169,8 +339,18 @@ def run(data):
     bul_r = _safe_run(lint_bullets, data)
     bak_r = _safe_run(lint_backend, data)
 
-    # 图片检查：先跑，把真实缺陷评分注入 data 供 cdq_score 使用
+    # ---- 数据覆盖度评估（前置，所有评分共享）----
+    data_coverage = _assess_data_coverage(data)
+    has_title = _is_present(data.get("title"))
+    has_highlights = _is_present(data.get("item_highlights"))
+    has_backend = _is_present(data.get("backend_search_terms"))
+    has_attributes = _is_present(data.get("attributes_filled")) or _is_present(
+        data.get("attributes_top10_expected")
+    )
     has_images = isinstance(data, dict) and bool(data.get("images"))
+    has_bullets = _is_present(data.get("bullets"))
+
+    # 图片检查：先跑，把真实缺陷评分注入 data 供 cdq_score 使用
     img_r = _safe_run(image_check, data) if has_images else None
     # 始终用副本，避免注入污染原始 data
     data_for_cdq = dict(data) if isinstance(data, dict) else {}
@@ -179,11 +359,17 @@ def run(data):
         data_for_cdq["image_defects"] = img_r.get("defects", [])
         data_for_cdq["images_count"] = img_r.get("image_count", data.get("images_count", 0))
     # CDQ 注入：把 lint 合规结果喂给 cdq_score，避免它对 title/bullets 保守假设合规
-    # （精度修复：标题违规时 CDQ title 子分此前仍给满分）
     if isinstance(title_r, dict) and "compliant" in title_r:
         data_for_cdq["title_compliant"] = title_r["compliant"]
     if isinstance(bul_r, dict) and "compliant" in bul_r:
         data_for_cdq["bullets_compliant"] = bul_r["compliant"]
+    # CDQ 注入：标记关键字段缺失，让 cdq_score 优雅降级
+    data_for_cdq["_missing"] = {
+        "title": not has_title,
+        "bullets": not has_bullets,
+        "attributes": not has_attributes,
+        "images": not has_images,
+    }
 
     cdq_r = _safe_run(cdq_score, data_for_cdq)
     idx_r = _safe_run(indexability, data)
@@ -204,6 +390,8 @@ def run(data):
         "is_parent": data.get("is_parent", False),
         "is_variation": data.get("is_variation", False),
         "generated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "data_coverage_overall": data_coverage["overall"],
+        "data_coverage_ratio": data_coverage["ratio"],
     }
 
     # ---- 合规段：优先脚本结果，否则模板空值 ----
@@ -226,6 +414,12 @@ def run(data):
         "band_a_critical_6": band_a,
         "band_a_filled": band_a_filled,
         "compliant": filled_ratio >= 0.6,
+        "input_available": has_attributes,
+        "input_unavailable_reason": (
+            None if has_attributes
+            else "attributes_filled / attributes_top10_expected 均为空，"
+                 "无法计算属性完整度（建议从 Seller Central 后台导出 Top10 属性）"
+        ),
     }
 
     # ---- 变体结构（透传）----
@@ -243,6 +437,115 @@ def run(data):
     cosmo_out = cosmo_r if isinstance(cosmo_r, dict) else {}
     triage_out = triage_r if isinstance(triage_r, dict) else template.get("triage_report", {})
 
+    # ---- 评分降级封装 ----
+    # COSMO：缺 title → score=null
+    if isinstance(cosmo_out, dict):
+        cosmo_out.setdefault("input_available", has_title and has_bullets)
+        cosmo_out.setdefault("input_unavailable_reason", None)
+        if not has_title:
+            cosmo_out["score"] = None
+            cosmo_out["input_available"] = False
+            cosmo_out["input_unavailable_reason"] = "缺 title，COSMO 意图扫描无文本"
+        elif not (has_bullets or has_highlights):
+            cosmo_out["score"] = None
+            cosmo_out["input_available"] = False
+            cosmo_out["input_unavailable_reason"] = (
+                "缺 bullets / item_highlights，COSMO 意图扫描范围太小"
+            )
+
+    # Alexa：缺 title → score=null
+    if isinstance(alexa_out, dict):
+        alexa_out.setdefault("input_available", has_title and has_bullets)
+        alexa_out.setdefault("input_unavailable_reason", None)
+        if not has_title:
+            alexa_out["score"] = None
+            alexa_out["input_available"] = False
+            alexa_out["input_unavailable_reason"] = "缺 title，Alexa 场景/人群扫描无文本"
+        elif not (has_bullets or has_highlights):
+            alexa_out["score"] = None
+            alexa_out["input_available"] = False
+            alexa_out["input_unavailable_reason"] = (
+                "缺 bullets / item_highlights，Alexa 意图覆盖范围太小"
+            )
+
+    # Indexability：缺 title → core_keyword=null；缺 backend → backend_hygiene=null；
+    #                缺 attributes → attribute_completeness=null
+    if isinstance(idx_out, dict):
+        if not has_title:
+            idx_out["core_keyword_position"] = None
+            idx_out["core_keyword_within_limit"] = None
+            idx_out["score_unavailable"] = idx_out.get("score_unavailable", []) + [
+                {"field": "core_keyword", "reason": "缺 title"}
+            ]
+        if not has_backend:
+            idx_out["backend_hygiene"] = None
+            idx_out["backend_hygiene_checks"] = {}
+            idx_out["score_unavailable"] = idx_out.get("score_unavailable", []) + [
+                {"field": "backend_hygiene", "reason": "缺 backend_search_terms"}
+            ]
+        if not has_attributes:
+            idx_out["attribute_completeness"] = None
+            idx_out["attribute_filled"] = 0
+            idx_out["attribute_expected"] = 0
+            idx_out["score_unavailable"] = idx_out.get("score_unavailable", []) + [
+                {"field": "attribute_completeness", "reason": "缺 attributes_filled + attributes_top10_expected"}
+            ]
+
+    # CDQ：缺标题/属性/图片/五点时，对应子分=null + reason
+    if isinstance(cdq_out, dict) and isinstance(cdq_out.get("components"), dict):
+        comps = cdq_out["components"]
+        unavailable = []
+        if not has_title:
+            comps["title"] = {"score": None, "weight": comps.get("title", {}).get("weight", 0),
+                              "reason": "缺 title，无法判定合规", "available": False}
+            unavailable.append({"field": "title", "reason": "缺 title"})
+        if not has_attributes:
+            comps["structured_attribute"] = {
+                "score": None,
+                "weight": comps.get("structured_attribute", {}).get("weight", 0),
+                "reason": "缺 attributes_filled + attributes_top10_expected",
+                "available": False,
+            }
+            unavailable.append({"field": "structured_attribute", "reason": "缺 attributes"})
+        if not has_images:
+            comps["image"] = {
+                "score": None,
+                "weight": comps.get("image", {}).get("weight", 0),
+                "reason": "缺 images（含 width/height/is_white_background/is_square）",
+                "available": False,
+            }
+            unavailable.append({"field": "image", "reason": "缺 images"})
+        if not has_bullets:
+            comps["bullet_point"] = {
+                "score": None,
+                "weight": comps.get("bullet_point", {}).get("weight", 0),
+                "reason": "缺 bullets，无法判定五点合规",
+                "available": False,
+            }
+            unavailable.append({"field": "bullet_point", "reason": "缺 bullets"})
+        if unavailable:
+            cdq_out["score_unavailable"] = unavailable
+            # 总分仅基于可用子分；保留原有 total 但补 available_total 字段
+            available_scores = [
+                c["score"] for c in comps.values()
+                if isinstance(c, dict) and isinstance(c.get("score"), (int, float))
+            ]
+            available_weights = [
+                c.get("weight", 0) for c in comps.values()
+                if isinstance(c, dict) and isinstance(c.get("score"), (int, float))
+            ]
+            if available_scores and sum(available_weights) > 0:
+                # 把可用子分按原始权重归一化到 100 分
+                avail_total = sum(
+                    comps[k]["score"] * comps[k]["weight"]
+                    for k in comps
+                    if isinstance(comps[k].get("score"), (int, float))
+                )
+                cdq_out["available_total"] = round(avail_total * 100, 1)
+                cdq_out["available_grade"] = (
+                    "Partial" if avail_total * 100 < 90 else "Partial (Optimized subset)"
+                )
+
     # ---- description 透传 ----
     desc = data.get("description", "")
     description_out = {
@@ -252,11 +555,9 @@ def run(data):
 
     # ---- compliance_report 汇总段 ----
     lint_sections = [title_out, hl_out, bul_out, bak_out, attributes_out, variation_base]
-    # 图片的 compliant 参与总体判定
     if isinstance(img_out, dict) and "compliant" in img_out:
         lint_sections.append(img_out)
     passed, failed, warnings = _count_checks(lint_sections)
-    # 图片无 checks dict，但其 compliant=False 也要计入 failed
     if isinstance(img_out, dict) and img_out.get("compliant") is False:
         failed += 1
     overall = _overall_compliant(lint_sections)
@@ -264,15 +565,12 @@ def run(data):
     actions = _collect_action_items(
         title_out, hl_out, bul_out, bak_out, cdq_out, idx_out, alexa_out, kw_out
     )
-    # 图片的行动项
     if isinstance(img_out, dict):
         for s in img_out.get("fix_suggestions", []) or []:
             actions.append({"source": "image", "action": str(s)})
-    # COSMO 意图覆盖建议
     if isinstance(cosmo_out, dict):
         for s in cosmo_out.get("suggestions", []) or []:
             actions.append({"source": "cosmo", "action": str(s)})
-    # 标题词组分诊汇总（指向 triage_report 的去向建议）
     if isinstance(triage_out, dict) and triage_out.get("summary"):
         s = triage_out["summary"]
         parts = []
@@ -287,6 +585,26 @@ def run(data):
         if parts:
             actions.append({"source": "triage", "action": "标题词组分诊：" + "，".join(parts) + "（详见 triage_report）"})
 
+    # 降级维度标记：把"评分因缺字段不可用"作为提示 action
+    degraded = []
+    if isinstance(cosmo_out, dict) and cosmo_out.get("input_available") is False:
+        degraded.append({
+            "source": "cosmo",
+            "action": f"COSMO 评分降级：{cosmo_out.get('input_unavailable_reason')}",
+        })
+    if isinstance(alexa_out, dict) and alexa_out.get("input_available") is False:
+        degraded.append({
+            "source": "alexa",
+            "action": f"Alexa 评分降级：{alexa_out.get('input_unavailable_reason')}",
+        })
+    if isinstance(cdq_out, dict) and cdq_out.get("score_unavailable"):
+        for u in cdq_out["score_unavailable"]:
+            degraded.append({
+                "source": "cdq",
+                "action": f"CDQ 子分 {u['field']} 降级：{u['reason']}",
+            })
+    actions = degraded + actions
+
     total_score = 0
     if isinstance(cdq_out, dict):
         total_score = cdq_out.get("total", 0)
@@ -296,10 +614,12 @@ def run(data):
         grade = cdq_out.get("grade", "")
 
     overall_status = "COMPLIANT" if overall else "NON-COMPLIANT"
+    coverage_pct = int(round(data_coverage["ratio"] * 100))
     summary = (
         f"Overall {overall_status}; "
         f"{passed} passed, {failed} failed, {warnings} warn; "
-        f"CDQ {total_score}/100 ({grade})".rstrip(" ()")
+        f"CDQ {total_score}/100 ({grade}); "
+        f"data {coverage_pct}% ({data_coverage['overall']})"
     )
 
     report_out = {
@@ -311,6 +631,7 @@ def run(data):
         "warnings": warnings,
         "critical_issues": critical,
         "action_items": actions,
+        "data_coverage": data_coverage,
     }
 
     return {

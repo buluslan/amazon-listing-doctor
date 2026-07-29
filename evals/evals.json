@@ -45,6 +45,63 @@
         {"name": "no_promo_words", "check": "优化后标题无促销词"}
       ],
       "files": []
+    },
+    {
+      "id": 4,
+      "name": "minimal-input-graceful-degrade",
+      "mode": "strict_75",
+      "prompt": "我只贴了 listing 的标题和品牌，缺图、缺后台搜索词、缺属性、缺亮点。skill 应当给出合规体检 + 部分评分（COSMO/Alexa/CDQ 子分/CDQ 总分标记降级），不报错，并明确告诉我补哪些字段能解锁剩余维度。",
+      "expected_output": "compliance_report summary 含 'data N% (minimal|partial)'；COSMO/Alexa 的 score=null + reason；CDQ components 中 structured_attribute/image/bullet_point 至少有一项 score=null；action_items 头部出现降级说明；data_coverage.unlock_dimensions 非空。",
+      "assertions": [
+        {"name": "no_crash_on_minimal", "check": "compliance_report 退出码 0/1 之一，不抛异常"},
+        {"name": "data_coverage_present", "check": "compliance_report.data_coverage.overall ∈ {minimal,partial}"},
+        {"name": "cosmo_degraded", "check": "cosmo_report.score=null 或 input_available=false"},
+        {"name": "alexa_degraded", "check": "alexa_discoverability.score=null 或 input_available=false"},
+        {"name": "cdq_components_marked", "check": "cdq_score.components 中至少 1 个子项 available=false"},
+        {"name": "unlock_dimensions_listed", "check": "data_coverage.unlock_dimensions 非空列表"},
+        {"name": "degraded_action_in_list", "check": "action_items 头部含 source∈{cdq,alexa,cosmo} 的降级说明"}
+      ],
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "german-listing-casing-false-positive-fix",
+      "mode": "strict_75",
+      "prompt": "德语站 listing，标题含 DJI（用户未填 brand 字段）和德语五点高频 mit/für/aus 介词。修过之前会被误判大小写违规 + 关键词堆砌。",
+      "expected_output": "lint_title casing PASS（DJI 走白名单不报违规）；lint_bullets 每条 bullet 的 keyword_stuffing=PASS；标题字符数合规。",
+      "assertions": [
+        {"name": "dji_casing_pass", "check": "对标题含 DJI 的德语 listing，lint_title.checks.casing.status=PASS"},
+        {"name": "de_prepositions_not_stuffed", "check": "对五点含 mit/für/aus 高频的德语 bullets，lint_bullets 各条 keyword_stuffing.status=PASS"},
+        {"name": "language_param_honored", "check": "language='de' 时 promo/subjective 走 de 黑名单兜底（即使 de 词表为空，promo 仍按 language 取词）"}
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "german-promo-blacklist-active",
+      "mode": "strict_75",
+      "prompt": "德语站 listing 标题里写 'kostenloser versand'（免运费），属于违规促销词必须被抓到。",
+      "expected_output": "lint_title.checks.promo_word.status=FAIL，details=['kostenloser versand']；fix_suggestions 含删除促销词建议。",
+      "assertions": [
+        {"name": "de_promo_caught", "check": "标题含 'kostenloser versand' 时 lint_title.checks.promo_word.status=FAIL"},
+        {"name": "de_promo_in_details", "check": "'kostenloser versand' 出现在 promo_word.details 列表"},
+        {"name": "fix_suggestion_emitted", "check": "fix_suggestions 至少含 1 条删除促销/营销词的建议"}
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "sellersprite-fetch-mock",
+      "mode": "strict_75",
+      "prompt": "用户输入 B0 开头的 ASIN + 站点，skill 调 SellerSprite MCP（sellersprite_fetch.py）拉取详情页数据，自动填充前台字段（title/brand/features/bullets/zoomImageUrl/images/description/has_a_plus/category），后台字段（item_highlights/backend_search_terms/attributes）保留为空 + meta.unfetched_backend 明确列出。",
+      "expected_output": "fetch() 返回 dict 含 market/language/category/brand/title/bullets/images/has_a_plus 已填；item_highlights/backend_search_terms/attributes_filled 等为空；meta.source='sellersprite' + meta.unfetched_backend 非空。无 secret-key 时返回 error 字段而非崩溃。",
+      "assertions": [
+        {"name": "fetch_returns_listing", "check": "sellersprite_fetch.fetch(market, asin, secret_key=None) 缺 key 时返回 {'error': ...}；有 key 时返回含 title/brand/bullets/images 的 listing"},
+        {"name": "backend_unfetched_listed", "check": "返回结果 meta.unfetched_backend 包含 item_highlights + backend_search_terms + attributes_filled"},
+        {"name": "front_field_filled_when_available", "check": "成功返回时 title/brand/bullets/images 不为空"},
+        {"name": "fetch_exit_codes", "check": "CLI 模式：缺 key 退出码 1；JSON 解析失败 退出码 1；正常 退出码 0"}
+      ],
+      "files": []
     }
   ]
 }

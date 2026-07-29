@@ -230,11 +230,21 @@ def check_forbidden_char(title, rules, brand):
 
 
 def check_promo_word(title, rules, language):
-    """促销词检查：按 language 取黑名单，子串匹配。"""
+    """促销词检查：按 language 取黑名单，子串匹配。
+
+    语言兜底顺序：当前 language → 同语系近邻（de↔en, fr↔en, es↔en）→ en。
+    多语言共用 en 黑名单可避免 de/fr 等黑名单尚未录入时的假阴性（漏报）。
+    """
     title_rules = rules.get("title", {})
     promo_map = title_rules.get("forbidden_promo_words", {})
-    lang = language or "en"
-    blacklist = promo_map.get(lang, promo_map.get("en", []))
+    lang = (language or "en").lower()
+    blacklist = (
+        list(promo_map.get(lang, []))
+        + list(promo_map.get("en", []))
+    )
+    # 去重保持顺序
+    seen = set()
+    blacklist = [w for w in blacklist if not (w in seen or seen.add(w))]
 
     low = title.lower()
     found = [w for w in blacklist if w and w.lower() in low]
@@ -245,11 +255,16 @@ def check_promo_word(title, rules, language):
 
 
 def check_subjective_word(title, rules, language):
-    """主观夸大词检查：按 language 取黑名单。"""
+    """主观夸大词检查：按 language 取黑名单（与 promo 同源兜底）。"""
     title_rules = rules.get("title", {})
     subj_map = title_rules.get("forbidden_subjective", {})
-    lang = language or "en"
-    blacklist = subj_map.get(lang, subj_map.get("en", []))
+    lang = (language or "en").lower()
+    blacklist = (
+        list(subj_map.get(lang, []))
+        + list(subj_map.get("en", []))
+    )
+    seen = set()
+    blacklist = [w for w in blacklist if not (w in seen or seen.add(w))]
 
     low = title.lower()
     found = [w for w in blacklist if w and w.lower() in low]
@@ -281,15 +296,38 @@ _ABBR_WHITELIST = {
     "OK",
 }
 
+# 常见全大写品牌名兜底（不依赖用户传入 brand 字段）。
+# 场景：用户直接复制 ASIN 详情页的标题，未填 brand；脚本不应当把品牌名当大小写违规。
+# 与 brand_tokens 互补：本表是行业公认的"看起来像缩写但其实是品牌名"的兜底。
+_BRAND_ABBR_WHITELIST = {
+    "DJI",   # 大疆
+    "BMW", "VW", "MG",   # 汽车（MG 同时也是重量单位，存疑时可走 brand_tokens）
+    "LG", "HP", "HTC",   # 消费电子
+    "OPPO", "VIVO", "IQOO", "REALME",   # 中国手机品牌
+    "BYD",   # 比亚迪
+    "SKF", "NSK",   # 轴承品牌（型号常用）
+    "TCL", "SKYWORTH", "HISENSE",   # 家电
+    "BAFANG",   # 电机品牌
+    "SHIMANO", "SRAM", "CAMPAGNOLO",   # 自行车件
+    "LEGO",
+}
+
 
 def check_casing(title, rules, brand):
-    """全大写检查：标题中不应有整词全大写（品牌名/单位缩写/常见缩写豁免）。"""
+    """全大写检查：标题中不应有整词全大写（品牌名/单位缩写/常见缩写豁免）。
+
+    三道豁免：
+      1) rules.allowed_unit_abbr（单位缩写）
+      2) _ABBR_WHITELIST（通用科技/型号缩写）
+      3) brand_tokens（用户传入 brand 字段派生的全大写 token）
+      4) _BRAND_ABBR_WHITELIST（行业公认全大写品牌兜底，防 DJI/BMW/LG 等误判）
+    """
     title_rules = rules.get("title", {})
     if not title_rules.get("no_all_caps", True):
         return {"status": "PASS", "details": []}
 
     allowed_units = set(u.upper() for u in title_rules.get("allowed_unit_abbr", []))
-    whitelist = _ABBR_WHITELIST | allowed_units
+    whitelist = _ABBR_WHITELIST | allowed_units | _BRAND_ABBR_WHITELIST
 
     # 品牌名 token 加入白名单（常见写法 ANKER / Nike）
     brand_tokens = set()

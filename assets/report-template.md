@@ -9,16 +9,40 @@
 
 ---
 
+## 〇、数据覆盖度（v0.2.0）
+
+> 体检前先看：本次输入覆盖了多少字段？缺哪些？补哪些字段可解锁剩余评分维度？
+
+| 维度 | 已收 / 总数 |
+|---|---|
+| **前台**（visible to buyer） | `{{compliance_report.data_coverage.frontend.provided_count}}` / `{{compliance_report.data_coverage.frontend.total_count}}` |
+| **后台**（backend-only） | `{{compliance_report.data_coverage.backend.provided_count}}` / `{{compliance_report.data_coverage.backend.total_count}}` |
+| **覆盖度** | `{{meta.data_coverage_ratio}}`（{{meta.data_coverage_overall}}） |
+
+**前台已收**: `{{compliance_report.data_coverage.frontend.provided}}`
+**前台缺失**: 遍历 `{{compliance_report.data_coverage.frontend.missing}}`（每项含 field/label）
+**后台已收**: `{{compliance_report.data_coverage.backend.provided}}`
+**后台缺失**: 遍历 `{{compliance_report.data_coverage.backend.missing}}`
+
+> ℹ️ **数据分层原则**：前台数据(title/bullets/description/images/brand/has_a_plus)可通过 SellerSprite MCP（asin_detail）或卖家粘贴获取；后台数据(item_highlights/backend_search_terms/attributes_filled/attributes_top10_expected/band_a_critical_6)只能从 Seller Central 后台导出。
+
+**补齐这些字段可解锁更多维度**（`{{compliance_report.data_coverage.unlock_dimensions}}`，遍历每项含 field/label/source）:
+
+---
+
 ## 总览
 
 | 指标 | 值 |
 |---|---|
 | **总体结论** | `{{compliance_report.summary}}` |
 | **CDQ 总分（主）** | `{{cdq_score.total}}` / 100（`{{cdq_score.grade}}`） |
+| **CDQ 可用子分** | `{{cdq_score.available_total}}` / 100（仅基于非降级子项，参考用） |
 | **收录健康度（A9）** | `{{indexability_report.score}}` / 100 |
-| **意图覆盖度（COSMO）** | `{{cosmo_report.score}}` / 100 · 覆盖率 `{{cosmo_report.coverage_ratio}}` |
-| **Alexa 可发现性** | `{{alexa_discoverability.score}}` / 100 |
+| **意图覆盖度（COSMO）** | `{{cosmo_report.score}}` / 100 · 覆盖率 `{{cosmo_report.coverage_ratio}}` · 可用 `{{cosmo_report.input_available}}` |
+| **Alexa 可发现性** | `{{alexa_discoverability.score}}` / 100 · 可用 `{{alexa_discoverability.input_available}}` |
 | **合规检查** | PASS `{{compliance_report.passed_checks}}` · FAIL `{{compliance_report.failed_checks}}` · WARN `{{compliance_report.warnings}}` |
+
+> ⚠️ `score=null` 表示评分因关键字段缺失而不可用（v0.2.0 起不强行给 0/100）；维度不可用的具体原因见 `input_unavailable_reason` 与 `action_items` 头部降级说明。
 
 > CDQ 为主总分（官方权重背书）；A9/COSMO/Alexa 为并列诊断维度。COSMO 基于公开论文（WWW 2024）精神的社区概念覆盖诊断，**非官方 COSMO 分**。
 
@@ -118,6 +142,8 @@
 | 图片 | `{{cdq_score.components.image.score}}` | `{{cdq_score.components.image.weight}}` | `{{cdq_score.components.image.reason}}` |
 | 五点 | `{{cdq_score.components.bullet_point.score}}` | `{{cdq_score.components.bullet_point.weight}}` | `{{cdq_score.components.bullet_point.reason}}` |
 | A+ | `{{cdq_score.components.a_plus.score}}` | `{{cdq_score.components.a_plus.weight}}` | `{{cdq_score.components.a_plus.reason}}` |
+
+> ⚠️ 子分 `null` 表示该子项因关键字段缺失被降级（v0.2.0）；缺字段时不要看总分误导，可用子分 `cdq_score.available_total` 才是真实可比的分数。降级维度列表见 `{{cdq_score.score_unavailable}}`。
 
 > 档位参考：Optimized 90-100 · Great 80-89 · Good 70-79 · Fair 50-69 · Poor 0-49
 

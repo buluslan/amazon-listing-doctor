@@ -14,7 +14,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-0.1.0-black.svg)]()
+[![Version](https://img.shields.io/badge/version-0.2.0-black.svg)]()
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](README_EN.md)
 
 **CDQ 质量分 · A9 收录 · COSMO 意图覆盖 · Alexa 可发现性 · 合规体检 · 标题词组分诊**
@@ -51,7 +51,7 @@ Amazon Listing Doctor 是一款 **Agent 原生** 的亚马逊 Listing 质检 Ski
 ## 🚫 它不做什么
 
 - **不改写文案** —— 只给"该改什么"的改进建议清单,改写交给你自己
-- **不内置浏览器抓取** —— 零依赖,数据靠你粘贴(推荐用 sorftime / 卖家精灵等专业工具取数)
+- **不内置浏览器抓取** —— 零依赖,数据靠你粘贴(推荐用 sorftime / 卖家精灵等专业工具取数);SellerSprite MCP 可选,见下文
 - **不冒充官方 COSMO 分** —— COSMO 无公开权重,本 skill 的 COSMO 维度是基于公开论文精神的社区诊断,如实标注
 
 ## 🚀 快速开始
@@ -66,11 +66,17 @@ python scripts/cdq_score.py --file listing.json        # CDQ 质量分
 python scripts/cosmo_check.py --file listing.json      # COSMO 意图覆盖
 python scripts/indexability.py --file listing.json     # A9 收录
 python scripts/title_triage.py --file listing.json     # 标题词组分诊
+
+# 4.(v0.2.0 起)有 SellerSprite API key 的话,可直接拉 ASIN 详情页前台数据
+export SELLERSPRITE_SECRET_KEY=xxxxxxxx
+python scripts/sellersprite_fetch.py --marketplace US --asin B0DRVKZHK9
 ```
 
 输出是结构化 JSON;按 `assets/report-template.md` 渲染成人类可读报告。
 
-### listing JSON 最小结构
+### listing JSON 最小结构 + 数据分层(v0.2.0)
+
+输入字段分两组,缺字段触发**评分降级**(标 score=null + 字段缺失原因)而非报错:
 
 ```json
 {
@@ -84,7 +90,33 @@ python scripts/title_triage.py --file listing.json     # 标题词组分诊
 }
 ```
 
+| 分层 | 字段 | 来源 |
+|------|------|------|
+| **前台** | title / bullets / description / images / brand / has_a_plus / market / language | 粘贴 / SellerSprite MCP / Seller Central 详情页 |
+| **后台** | item_highlights / backend_search_terms / attributes_filled / attributes_top10_expected / band_a_critical_6 | **必须从 Seller Central 后台导出** |
+
+为什么这样切:后台字段(item_highlights / search_terms)亚马逊对外不展示,第三方 API 拿不到;Skill 必须支持用户单独贴前台 / 后台 / 两者一起,缺字段不影响审计流程跑通。
+
+### v0.2.0 评分降级示例
+
+只给 title 一个字段,缺其他字段时报告输出:
+```
+Overall NON-COMPLIANT; 17 passed, 2 failed, 1 warn; CDQ 31.2/100 (Poor); data 29% (minimal)
+- COSMO 评分降级: 缺 bullets / item_highlights
+- Alexa 评分降级: 缺 bullets / item_highlights
+- CDQ 子分 structured_attribute 降级: 缺 attributes_filled + attributes_top10_expected
+- A9 子分 backend_hygiene 降级: 缺 backend_search_terms
+- ...
+data_coverage.unlock_dimensions: [补 item_highlights → 解锁 A9 高亮强度..., 补 attributes → 解锁 CDQ 30% 权重...]
+```
+
 字段不全也没关系——缺的字段对应检查自动跳过,不会报错。详见 `SKILL.md`。
+
+### v0.2.0 多语言修复
+
+- ✅ 德语 listing 不再因 mit / für / durch / aus 等介词被判关键词堆砌(虚词按 `language` 自动取)
+- ✅ promo / subjective 黑名单补齐 de / fr / it / es
+- ✅ 全大写品牌名 DJI / BMW / LG / HP / HTC / OPPO / TCL 等走白名单(不依赖用户传 brand 字段)
 
 ## 🧠 四大底座怎么落地
 
@@ -99,8 +131,8 @@ python scripts/title_triage.py --file listing.json     # 标题词组分诊
 ```
 amazon-listing-doctor/
 ├── SKILL.md                  # 质检路由(工作流 + 原则)
-├── scripts/                  # 12 个纯标准库 Python 脚本
-│   ├── compliance_report.py  # 汇总器(核心入口)
+├── scripts/                  # 13 个纯标准库 Python 脚本
+│   ├── compliance_report.py  # 汇总器(核心入口,含 data_coverage 降级板块)
 │   ├── cdq_score.py          # CDQ 6 维评分
 │   ├── cosmo_check.py        # COSMO 意图覆盖(本项目独占)
 │   ├── title_triage.py       # 标题词组分诊(去向建议)
@@ -108,11 +140,12 @@ amazon-listing-doctor/
 │   ├── alexa_check.py        # Alexa 可发现性
 │   ├── image_check.py        # 图片缺陷
 │   ├── lint_title/highlights/bullets/backend.py  # 合规校验
-│   └── check_keyword_layering.py
+│   ├── check_keyword_layering.py
+│   └── sellersprite_fetch.py # SellerSprite MCP 入口(ASIN → 前台 JSON, v0.2.0 起)
 ├── references/               # 规则与词库(公开版)
 │   ├── cosmo_ontology.json   # COSMO 概念本体(4 维)
 │   ├── cdq_weights.json      # CDQ 权重
-│   ├── rules.json            # 合规硬规则
+│   ├── rules.json            # 合规硬规则(含 de/fr/it/es 多语言黑名单)
 │   └── ...
 └── assets/                   # 输出模板
     ├── output-template.json

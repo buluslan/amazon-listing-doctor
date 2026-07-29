@@ -10,7 +10,7 @@ allowed-tools:
   - Edit
 metadata:
   category: ecommerce/amazon
-  version: 0.1.0
+  version: 0.2.0
   markets: [US, UK, DE, FR, IT, ES, JP, CA, AU]
 ---
 
@@ -34,7 +34,7 @@ metadata:
 
 ## 工作流（纯诊断 3 步）
 
-### 1. 输入归一化（零依赖）
+### 1. 输入归一化（零依赖 + 可选 MCP 增强）
 
 用户可能给 3 种输入，**全部归一化为同一个 listing JSON**（脚本只认 JSON）：
 
@@ -42,12 +42,36 @@ metadata:
 用户给的数据
 ├─ 纯文本 / 后台导出表格？  → 直接解析归一化（首选，零依赖，最可靠）
 ├─ 网页链接（amazon 官方域名）？ → 用环境可用的抓取能力尝试；抓不全请用户补
-└─ ASIN（B0 开头 10 位）？    → 配 market 构造 URL → 走链接路径；无联网请用户改粘贴
+└─ ASIN（B0 开头 10 位）？    → 可选 SellerSprite MCP（推荐）/ 配 market 构造 URL
         ↓ 汇总
 归一化 listing JSON → 审计
 ```
 
 > ⭐ **数据获取建议**：亚马逊反爬激进，优先用专业工具取数再粘贴，反爬能力强且不碰账号风控。本 skill 专注最擅长的——归一化 + 体检 + 打分。**不内置浏览器自动化**（违背零依赖自包含原则）。URL/ASIN 抓不全很正常，拿到什么审什么，缺图片/评论请用户补，**绝不因抓不全而整个流程报废**。
+
+#### 1.1 数据分层（前台 vs 后台，v0.2.0 起）
+
+输入 listing JSON 明确分为两组字段，**缺失字段触发评分降级而非报错**：
+
+| 分层 | 字段 | 来源 |
+|------|------|------|
+| **前台（visible to buyer）** | `title` / `bullets` / `description` / `images` / `brand` / `category` / `market` / `language` / `has_a_plus` / `is_parent` / `is_variation` | SellerSprite MCP（asin_detail）可取 + 用户贴图 |
+| **后台（backend-only）** | `item_highlights` / `backend_search_terms` / `attributes_filled` / `attributes_top10_expected` / `band_a_critical_6` / 父子体属性映射 | **必须从 Seller Central 后台导出**，外部 API 取不到 |
+
+**为什么这样切**：前台数据亚马逊对外展示，第三方工具可拉；后台数据 Seller Central 才能编辑，外部 API（含 SellerSprite）都没有 `item_highlights` / `search_terms` 字段。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。
+
+#### 1.2 SellerSprite MCP 接入（v0.2.0 起，可选）
+
+如果用户环境配置了 SellerSprite API（`SELLERSPRITE_SECRET_KEY`），用 `sellersprite_fetch.py` 直接拉取 ASIN 详情页前台数据：
+
+```bash
+export SELLERSPRITE_SECRET_KEY=xxxxxxxxxxxx
+python scripts/sellersprite_fetch.py --marketplace US --asin B0DRVKZHK9
+```
+
+返回 listing JSON，前台字段（title/brand/features→bullets/zoomImageUrl→images/description/has_a_plus/category）已填，后台字段为空 + `meta.unfetched_backend` 明确列出需从 Seller Central 补的字段名。
+
+> 注意：`sellersprite_fetch.py` 是**零依赖的标准库实现**（urllib），有 `requests` 自动切换。环境变量未配置时返回 `error` 字段而非崩溃——skill 不会因缺 key 而整个流程报废。
 
 归一化是 LLM 的活（输入格式千变万化），脚本只处理 JSON（确定）。缺的字段留空，对应检查自动跳过。
 
@@ -62,6 +86,24 @@ python scripts/compliance_report.py --file listing.json
 - **图片缺陷**：需 listing 含 `images` 字段（每张含 width/height/has_watermark/is_white_background/is_square）——由 Claude 原生视觉分析用户贴的图后填入。无图自动跳过。
 - **COSMO**：扫全文匹配 `references/cosmo_ontology.json` 的概念词，算四维覆盖。`goal` 维度故意偏难——listing 常堆属性词而不写"用户目标"，goal 覆盖率低正是诊断价值（指出 listing 缺意图层表达）。
 - **标题词组分诊**：把标题拆成语义词组（按标点 + 介词边界），按词性 + 合规信号给每个词组去向建议（标题必留 / 下移亮点 / 下移五点 / 删除违规），confidence=low 的词组留人工复核。只给去向不给改写。
+
+#### 2.1 评分降级（v0.2.0 起）
+
+**原则**：缺关键字段时**显式标 score=null + reason**，不强行给 0 或 100，让用户一眼看出"这个分数是因为数据不足，不是真差"。
+
+| 维度 | 缺哪个字段 → 降级行为 |
+|------|---------------------|
+| CDQ title | 缺 title → `components.title.score=null` |
+| CDQ structured_attribute | 缺 `attributes_filled` + `attributes_top10_expected` → null |
+| CDQ image | 缺 `images` → null |
+| CDQ bullet_point | 缺 `bullets` → null |
+| A9 core_keyword | 缺 title → `core_keyword_position=null` |
+| A9 backend_hygiene | 缺 `backend_search_terms` → null |
+| A9 attribute_completeness | 缺 attributes → null |
+| COSMO | 缺 title 或只缺 bullets/item_highlights → score=null |
+| Alexa | 同 COSMO |
+
+报告顶层 `compliance_report.data_coverage` 板块给出数据完整度摘要（`overall`: minimal / partial / complete）+ `unlock_dimensions`（补齐这些字段可解锁哪些评分维度）。`action_items` 头部插入降级说明（如 `"COSMO 评分降级：缺 bullets / item_highlights..."`）。
 
 ### 3. 体检报告
 
@@ -81,18 +123,19 @@ python scripts/compliance_report.py --file listing.json
   "attributes_filled":[...],"attributes_top10_expected":[...],"band_a_critical_6":[...],
   "images":[{"url":"","width":2000,"height":2000,"has_watermark":false,"is_white_background":true,"is_square":true}],
   "has_a_plus":true,
-  "keywords":{"P0":[...],"P1":[...],"P2":[...]}
+  "keywords":{"P0":[...],"P1":[...],"P2":[...]},
+  "meta":{"source":"sellersprite|paste","unfetched_backend":[...]}
 }
 ```
-（LLM 按此 schema 归一化；缺的字段可留空，对应检查自动跳过。`attributes_top10_expected`/`band_a_critical_6` 不传时查 `references/category_attributes/<category>.json` 兜底，也可用户自填覆盖。）
+（LLM 按此 schema 归一化；缺的字段可留空，对应检查自动跳过 + 评分优雅降级。`attributes_top10_expected`/`band_a_critical_6` 不传时查 `references/category_attributes/<category>.json` 兜底，也可用户自填覆盖。`meta.unfetched_backend` 列出哪些后台字段仍待补。）
 
-## 脚本清单（12 个，纯标准库）
+## 脚本清单（13 个，纯标准库）
 
 | 脚本 | 作用 | 退出码 |
 |------|------|--------|
-| lint_title.py | 标题合规（75 字符 / 重复词 / 禁字符 / 促销词 / 主观词 / 核心词前置） | 0/1 |
+| lint_title.py | 标题合规（75 字符 / 重复词 / 禁字符 / 促销词 / 主观词 / 核心词前置 / 大小写） | 0/1 |
 | lint_highlights.py | 商品亮点（125 字符 / ≥3 短句） | 0/1 |
-| lint_bullets.py | 五点（5-6 条 / 单条 ≤500 字符） | 0/1 |
+| lint_bullets.py | 五点（5-6 条 / 单条 ≤500 字符 / **按 language 豁免介词堆砌**） | 0/1 |
 | lint_backend.py | backend search terms（≤250 字节 / 空格分隔 / 无停用词） | 0/1 |
 | image_check.py | 图片缺陷 → CDQ 图片分 | 0/1 |
 | cdq_score.py | CDQ 6 维评分（自动读图片真实缺陷 + 注入标题合规状态） | 0 |
@@ -101,7 +144,8 @@ python scripts/compliance_report.py --file listing.json
 | alexa_check.py | Alexa 可发现性（10 类目分词库 + 通用词库） | 0 |
 | **title_triage.py** | **标题词组分诊（词组→去向建议：必留/下移/删除）** | 0 |
 | check_keyword_layering.py | 关键词四层去重 + 加权索引分 | 0 |
-| compliance_report.py | **汇总全部 → 完整报告** | 0/1 |
+| **sellersprite_fetch.py** | **SellerSprite MCP 入口（ASIN+marketplace → listing JSON 前台字段）** | 0/1 |
+| compliance_report.py | **汇总全部 → 完整报告（含 data_coverage 降级说明）** | 0/1 |
 
 统一 CLI：stdin JSON / `--data '<json>'` / `--file <path>` 输入；stdout 输出 JSON。每个脚本都是 `run(data)->dict` 纯函数，可被 `compliance_report` 通过 import 直接调用。
 
@@ -119,6 +163,8 @@ python scripts/compliance_report.py --file listing.json
 
 - **合规校验全脚本化**：绝不靠"请避免重复词"这类措辞约束 LLM，必须跑脚本（LLM 会跳过文字约束）
 - **零依赖自包含**：不绑任何特定外部 skill。输入靠用户提供（粘贴/导出为主），图片靠 Claude 原生视觉；联网抓取只是可选增强且不写死工具名。用"陌生用户 clone 下来就能跑"检验设计
+- **数据分层（v0.2.0）**：前台数据靠 SellerSprite MCP / 粘贴，后台数据必须 Seller Central 导出；缺字段优雅降级，不阻塞流程
+- **多语言虚词豁免（v0.2.0）**：bullets 关键词堆砌按 `language` 字段取虚词表；德语 listing 不再因 mit/für/durch/aus 等介词被误判堆砌。promo/subjective 黑名单覆盖 de/fr/it/es
 - **COSMO 诚实标注**：COSMO 无官方质检权重，本 skill 的 COSMO 维度是基于公开论文（WWW 2024）精神的社区概念覆盖诊断，**不是官方 COSMO 分**。报告里如实标注
 - **媒体类目豁免**：Books/Music/DVD/Video 不受 75 字符限制，脚本按 category 自动识别
 - **不与关键词数据库竞争**：关键词由用户自带或竞品 ASIN 抽取

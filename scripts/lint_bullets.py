@@ -31,6 +31,88 @@ def _load_rules():
     return {}
 
 
+# 多语言虚词兜底（与 rules.json.title.repeat_exempt 合并使用）。
+# 解决：用户用德语 listing 时，'mit/für/durch/aus/bei' 等介词被误判关键词堆砌。
+# 字段为空时不会引入新假阳性（短词也不会被豁免）。
+_FALLBACK_STOPWORDS_BY_LANG = {
+    "de": [
+        # 介词
+        "mit", "für", "durch", "aus", "bei", "über", "unter", "von", "zu",
+        "ohne", "gegen", "nach", "seit", "bis", "während",
+        # 连词
+        "und", "oder", "aber", "denn", "weil", "wenn", "als", "damit",
+        "sowie", "noch",
+        # 冠词 / 代词
+        "der", "die", "das", "den", "dem", "des", "ein", "eine", "einer",
+        "eines", "einem", "einen", "kein", "keine",
+        "ich", "du", "er", "sie", "es", "wir", "ihr",
+        "dieser", "diese", "dieses", "jener", "jene", "jenes",
+        "alle", "alles", "beide",
+    ],
+    "fr": [
+        "avec", "pour", "par", "dans", "sur", "sans", "sous", "entre",
+        "vers", "chez", "de", "du", "des", "le", "la", "les", "un", "une",
+        "et", "ou", "mais", "donc", "or", "ni", "car",
+        "je", "tu", "il", "elle", "nous", "vous", "ils", "elles",
+        "ce", "cette", "ces", "mon", "ton", "son", "notre", "votre", "leur",
+        "qui", "que", "quoi", "dont", "où",
+    ],
+    "it": [
+        "con", "per", "da", "in", "su", "senza", "sotto", "tra", "fra",
+        "verso", "di", "del", "della", "dei", "degli", "delle",
+        "il", "lo", "la", "i", "gli", "le", "un", "una", "uno",
+        "e", "o", "ma", "che", "perché", "quando", "come", "dove",
+        "io", "tu", "lui", "lei", "noi", "voi", "loro",
+        "mio", "tuo", "suo", "nostro", "vostro", "loro",
+    ],
+    "es": [
+        "con", "para", "por", "de", "del", "en", "sobre", "sin", "bajo",
+        "entre", "hacia", "desde", "hasta", "durante", "mediante",
+        "el", "la", "los", "las", "un", "una", "unos", "unas",
+        "y", "o", "pero", "sino", "porque", "cuando", "como", "donde",
+        "yo", "tú", "él", "ella", "nosotros", "vosotros", "ellos", "ellas",
+        "mi", "tu", "su", "nuestro", "vuestro",
+        "que", "cuyo", "quien",
+    ],
+    "ja": [
+        "の", "に", "は", "を", "が", "で", "と", "も", "から", "まで",
+        "より", "や", "か", "ね", "よ",
+    ],
+    "en": [
+        "in", "on", "over", "with", "for", "to", "of", "at", "by",
+        "and", "or", "but", "nor", "so", "yet",
+        "the", "a", "an",
+    ],
+}
+
+
+def _resolve_stopwords(rules, language):
+    """按 language 取虚词集合，缺则回退 en。
+
+    优先用 rules.json.title.repeat_exempt_by_lang（按语种分组的字典），
+    否则用顶层 repeat_exempt 数组，再叠加多语言兜底。
+    """
+    lang = (language or "en").lower()
+    t_rules = rules.get("title", {})
+
+    # 新格式：按语种分组的字典
+    by_lang = t_rules.get("repeat_exempt_by_lang")
+    if isinstance(by_lang, dict):
+        exempt = set(w.lower() for w in by_lang.get(lang, []) or [])
+        # 同语系兜底：en 永远叠加（不重复添加）
+        fallback_lang = "en" if lang != "en" else None
+        if fallback_lang:
+            exempt.update(w.lower() for w in by_lang.get(fallback_lang, []) or [])
+    else:
+        # 旧格式兼容：单一数组（视为英文）
+        exempt = set(w.lower() for w in t_rules.get("repeat_exempt", []) or [])
+
+    # 叠加多语言兜底（确保德语介词即使没在 rules.json 里也豁免）
+    fallback_set = set(_FALLBACK_STOPWORDS_BY_LANG.get(lang, []))
+    exempt.update(fallback_set)
+    return exempt
+
+
 # --------------------------------------------------------------------------- #
 # 词形归一化（strip_hyphen + singularize + lowercase，标准库实现）
 # --------------------------------------------------------------------------- #
@@ -99,7 +181,7 @@ def run(data):
     """校验 bullets，返回结果 dict（纯函数）。
 
     Args:
-        data: dict，含 bullets:[{header, body}]。
+        data: dict，含 bullets:[{header, body}]，可选 language。
 
     Returns:
         dict 结构：
@@ -111,9 +193,9 @@ def run(data):
     count_max = b_rules.get("count_max", 6)
     max_chars_each = b_rules.get("max_chars_each", 500)
 
-    # 借用 title.repeat_exempt 作为词频堆砌的虚词豁免表
-    t_rules = rules.get("title", {})
-    exempt = set(t_rules.get("repeat_exempt", []))
+    # 词频堆砌的虚词豁免：按 language 取（德语 listing 命中德语介词不报堆砌）
+    language = data.get("language", "") or ""
+    exempt = _resolve_stopwords(rules, language)
 
     raw_bullets = data.get("bullets", [])
     if raw_bullets is None:
