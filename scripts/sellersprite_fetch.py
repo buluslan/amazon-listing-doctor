@@ -123,6 +123,42 @@ def _map_description(asin_data):
     return str(ov)
 
 
+def _map_attributes(asin_data):
+    """从 API 返回提取 structured attributes → attributes_filled 列表。
+
+    SellerSprite /v1/asin 可能不直接返回 attributes dict；
+    sorftime MCP 返回 JSON 字符串格式的 attributes。
+    本函数尝试多种格式，提取属性名列表。
+    """
+    attrs = asin_data.get("attributes")
+    if not attrs:
+        # 备选：部分 API 用 specifications / techSpecs 等键名
+        for alt_key in ("specifications", "techSpecs", "product_details"):
+            if asin_data.get(alt_key):
+                attrs = asin_data[alt_key]
+                break
+
+    if not attrs:
+        return []
+
+    # 如果是 JSON 字符串，先解析
+    if isinstance(attrs, str):
+        try:
+            attrs = json.loads(attrs)
+        except (json.JSONDecodeError, ValueError):
+            return []
+
+    # 如果是 dict → 取所有 key 为已填属性名
+    if isinstance(attrs, dict):
+        return list(attrs.keys())
+
+    # 如果是 list → 取元素本身
+    if isinstance(attrs, list):
+        return [str(a) for a in attrs if a]
+
+    return []
+
+
 def _category_from_path(node_label_path):
     """从类目路径取最后一段（叶类目）。"""
     if not node_label_path or not isinstance(node_label_path, str):
@@ -191,6 +227,7 @@ def fetch(marketplace, asin, secret_key=None):
     images = _map_images(data, marketplace)
     description = _map_description(data)
     category = _category_from_path(data.get("nodeLabelPath") or "")
+    attributes_filled = _map_attributes(data)
 
     # has_a_plus：badge.ebc == "Y" 视为有 A+ 内容
     badge = data.get("badge") or {}
@@ -209,11 +246,12 @@ def fetch(marketplace, asin, secret_key=None):
         "description": description,
         "images": images,
         "has_a_plus": has_a_plus,
+        # attributes → 前台字段（详情页 Product Details 表格可见）
+        "attributes_filled": attributes_filled,
+        "attributes_top10_expected": [],
         # 后台字段明确留空 + 标注需用户补
         "item_highlights": "",
         "backend_search_terms": "",
-        "attributes_filled": [],
-        "attributes_top10_expected": [],
         "band_a_critical_6": [],
         "is_parent": bool(data.get("parent") and data["parent"] != asin),
         "is_variation": bool(data.get("variations")),

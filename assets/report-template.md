@@ -9,7 +9,7 @@
 
 ---
 
-## 〇、数据覆盖度（v0.2.0）
+## 〇、数据覆盖度
 
 > 体检前先看：本次输入覆盖了多少字段？缺哪些？补哪些字段可解锁剩余评分维度？
 
@@ -42,7 +42,7 @@
 | **Alexa 可发现性** | `{{alexa_discoverability.score}}` / 100 · 可用 `{{alexa_discoverability.input_available}}` |
 | **合规检查** | PASS `{{compliance_report.passed_checks}}` · FAIL `{{compliance_report.failed_checks}}` · WARN `{{compliance_report.warnings}}` |
 
-> ⚠️ `score=null` 表示评分因关键字段缺失而不可用（v0.2.0 起不强行给 0/100）；维度不可用的具体原因见 `input_unavailable_reason` 与 `action_items` 头部降级说明。
+> ⚠️ `score=null` 表示评分因关键字段缺失而不可用（不强行给 0/100）；维度不可用的具体原因见 `input_unavailable_reason` 与 `action_items` 头部降级说明。
 
 > CDQ 为主总分（官方权重背书）；A9/COSMO/Alexa 为并列诊断维度。COSMO 基于公开论文（WWW 2024）精神的社区概念覆盖诊断，**非官方 COSMO 分**。
 
@@ -143,7 +143,7 @@
 | 五点 | `{{cdq_score.components.bullet_point.score}}` | `{{cdq_score.components.bullet_point.weight}}` | `{{cdq_score.components.bullet_point.reason}}` |
 | A+ | `{{cdq_score.components.a_plus.score}}` | `{{cdq_score.components.a_plus.weight}}` | `{{cdq_score.components.a_plus.reason}}` |
 
-> ⚠️ 子分 `null` 表示该子项因关键字段缺失被降级（v0.2.0）；缺字段时不要看总分误导，可用子分 `cdq_score.available_total` 才是真实可比的分数。降级维度列表见 `{{cdq_score.score_unavailable}}`。
+> ⚠️ 子分 `null` 表示该子项因关键字段缺失被降级；缺字段时不要看总分误导，可用子分 `cdq_score.available_total` 才是真实可比的分数。降级维度列表见 `{{cdq_score.score_unavailable}}`。
 
 > 档位参考：Optimized 90-100 · Great 80-89 · Good 70-79 · Fair 50-69 · Poor 0-49
 

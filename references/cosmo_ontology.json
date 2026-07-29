@@ -9,7 +9,26 @@
       "constraint": "limits / qualifiers (when/where it does NOT apply)"
     },
     "scoring": "score = target-line weighted (like alexa); coverage_ratio = matched/total (honest precision). goal is intentionally hard — low goal coverage flags attribute-stuffed listings.",
-    "matching": "substring match (covers plural/inflection: comfort→comfortable, commute→commutes). concept words chosen from real listing vocabulary, not abstract phrases."
+    "matching": "dual-mode: agent_semantic (preferred, reading extraction_guidance) or substring (fallback, reading _common word lists)"
+  },
+  "extraction_guidance": {
+    "_instruction": "You are analyzing an Amazon product listing to identify COSMO intent concepts. For each of the 4 dimensions below, read the listing text and identify: (1) which concepts are COVERED by the listing (the listing expresses this concept, through any wording), (2) which concepts from this dimension are MISSING (important user-intent concepts that the listing does not address). Do NOT just match keywords — understand what the listing is expressing semantically. A listing that says 'keeps your cat fed while you're at work' covers the work scenario even if the word 'work' doesn't appear. A listing that says 'perfect for your morning jog' covers the running scenario. Do NOT fabricate concepts that are not genuinely relevant to this product's category. Return your analysis as a JSON object with covered_concepts and missing_concepts per dimension.",
+    "use_case": {
+      "definition": "Where / what the product is used for — specific scenarios, environments, activities, and contexts of use. Look for: location nouns (office, gym, kitchen, home), activity descriptions (commuting, hiking, cooking, studying), and time-of-use or occasion signals (night, weekend, summer, party).",
+      "examples": ["travel", "commute", "office", "work", "home", "gym", "workout", "running", "outdoor", "gaming", "sleep", "study", "cooking", "cleaning", "party", "hiking", "camping"]
+    },
+    "audience": {
+      "definition": "Who the product is for — target user groups, demographics, skill levels, and roles. Look for: demographic nouns (men, women, kids, children, seniors, baby), role/identity nouns (professional, student, athlete, beginner, expert), and implicit audiences revealed through wording ('fits small hands' → kids, 'boardroom-ready' → professionals, 'busy multi pet owners' → pet owners).",
+      "examples": ["men", "women", "kids", "children", "senior", "baby", "professional", "student", "athlete", "beginner", "family", "office worker", "traveler", "pet owner", "homeowner", "teen"]
+    },
+    "goal": {
+      "definition": "Why the user buys it / what outcome or benefit they want — user goals, desired feelings, results, and pain-point resolutions. This is COSMO's signature dimension: most listings only describe product attributes, not user goals. Look for: benefit verbs (protect, organize, relax, focus, relieve), result adjectives (comfortable, clean, bright, safe, warm, cool), and outcomes described through phrases ('no more tangled cords' → convenience, 'wake up refreshed' → restfulness, 'never miss a meal' → reliability). A single listing passage can express multiple goals — extract them all.",
+      "examples": ["comfort", "quiet", "safe", "health", "organize", "easy", "secure", "fresh", "soft", "smooth", "bright", "clear", "strong", "warm", "cool", "protect", "relax", "energy", "focus", "calm", "enjoy", "relieve"]
+    },
+    "constraint": {
+      "definition": "Limits, qualifiers, conditions, and requirements — what the product can/cannot do, where/how it applies, and trust/durability signals. Look for: capability qualifiers (waterproof, cordless, rechargeable, portable), use boundaries (indoor-only, up to 200 lbs, for dry hair only), material/design constraints (BPA-free, machine-washable, heavy-duty), and usage requirements (needs WiFi, requires batteries). Also capture trust signals that affect purchase decisions (non-toxic, eco-friendly, easy to install).",
+      "examples": ["waterproof", "leakproof", "portable", "washable", "rechargeable", "cordless", "lightweight", "durable", "breathable", "budget", "premium", "eco", "compact", "heavy duty", "travel size", "easy to use", "low maintenance", "non toxic", "splashproof", "sweatproof"]
+    }
   },
   "_common": {
     "use_case": [

@@ -2,17 +2,29 @@
 """cosmo_check.py — COSMO 意图覆盖度评估（doctor 独占维度）。
 
 读取 references/cosmo_ontology.json, 按 category 取本体 (缺类目时 fallback _common),
-扫描 listing 全文, 算 use_case / audience / goal / constraint 四维度的概念覆盖度。
+支持两种模式:
+  - Agent 语义提取（优先）: data 中含 _cosmo_extracted 字段时直接用于算分
+  - substring 匹配（回退）: data 中无 _cosmo_extracted 时走旧词库 substring 匹配
 
-COSMO (亚马逊电商常识知识图谱, WWW 2024) 无官方质检权重 —— 本脚本是基于公开论文精神的
-"概念覆盖率" 诊断, 不是官方 COSMO 分。输出:
+输出:
   - score: 达标线加权 0-100 (对标 alexa, 友好可比)
   - coverage_ratio: 精确覆盖率 matched/total (诚实反映概念覆盖)
   - covered/missing_concepts: 每维已覆盖与缺失的概念清单 (可操作)
   - suggestions: 补概念建议
 
+用法:
+  # Agent 前置: 获取提取提示词
+  from cosmo_check import get_agent_prompt
+  prompt = get_agent_prompt(data)  # → 返回 listing_text + dimensions + output_schema
+
+  # 然后: Agent 语义提取 → 写回 data["_cosmo_extracted"] → run(data)
+
 设计要点: goal 维度故意偏难 —— listing 通常堆属性词而不写"用户目标",
 goal 覆盖率低正是诊断价值所在 (指出 listing 缺少意图层表达)。
+
+Agent 提取 vs substring: substring 匹配只能识别词库中已有的精确关键词,
+Agent 语义提取能理解 "keeps cat fed while at work" 表达了 work 场景——
+这是 COSMO 作为常识知识图谱的核心价值,正则做不到。
 """
 
 import sys
@@ -87,7 +99,7 @@ def _get_category_ontology(ontology, category):
 
 
 def _collect_listing_text(data):
-    """合并 COSMO 意图来源全文: title/highlights/bullets/description/backend/attributes。"""
+    """合并 COSMO 意图来源全文。（public: Agent 提取也需要这段全文。）"""
     parts = []
     for key in ("title", "item_highlights", "description", "backend_search_terms"):
         v = data.get(key)
@@ -109,12 +121,7 @@ def _collect_listing_text(data):
 
 
 def _word_in_text(word, text):
-    """概念词是否在文本中出现 (substring 匹配, 覆盖单复数/词形变化; 大小写不敏感)。
-
-    COSMO 概念是用户意图/利益词, listing 常以变形出现
-    (comfortable/comforting/comforts, commute/commutes/commuting),
-    用 substring 比严格词边界更能捕获意图表达。概念词已精选避免短词歧义。
-    """
+    """概念词是否在文本中出现 (substring 匹配, 覆盖单复数/词形变化; 大小写不敏感)。"""
     return word.lower() in text
 
 
@@ -126,27 +133,141 @@ def _scan_dimension(words, text):
     return matched, missing
 
 
-# --------------------------- 核心纯函数 ---------------------------
+# --------------------------- Agent 提取接口 ---------------------------
 
-def run(data):
-    """COSMO 意图覆盖度评估。
+def get_agent_prompt(data):
+    """返回 Agent 做 COSMO 语义提取所需的全部上下文。
 
     Args:
-        data: listing dict (需含 category 与若干文本字段)。
+        data: listing dict（需含 category 与文本字段）。
 
     Returns:
-        dict, 含:
-          score(0-100 达标线评分), coverage_ratio(0-1 精确覆盖率),
-          covered_concepts(dict per dim), missing_concepts(dict per dim),
-          per_dimension(dict per dim {covered,total,ratio}),
-          suggestions(list), category, ontology_source, used_fallback,
-          targets, weights。
+        dict:
+          - listing_text: listing 全文（同 _collect_listing_text 输出）
+          - dimensions: 四维定义 + 示例（来自 extraction_guidance）
+          - output_schema: Agent 应输出的 JSON 格式说明
+          - instruction: 提取指令（来自 extraction_guidance._instruction）
     """
     if not isinstance(data, dict):
         data = {}
 
     ontology = _load_ontology()
-    category = (data.get("category") or "").strip()
+    guidance = ontology.get("extraction_guidance", {}) if isinstance(ontology, dict) else {}
+    listing_text = _collect_listing_text(data)
+
+    dimensions = {}
+    for dim in DIMENSIONS:
+        dim_guidance = guidance.get(dim)
+        if isinstance(dim_guidance, dict):
+            dimensions[dim] = dim_guidance
+        else:
+            dimensions[dim] = {"definition": "", "examples": []}
+
+    return {
+        "listing_text": listing_text,
+        "dimensions": dimensions,
+        "output_schema": {
+            "covered_concepts": {
+                "use_case": ["concept1", "concept2", "..."],
+                "audience": ["concept1", "..."],
+                "goal": ["concept1", "..."],
+                "constraint": ["concept1", "..."]
+            },
+            "missing_concepts": {
+                "use_case": ["missing_concept1", "..."],
+                "audience": ["missing_concept1", "..."],
+                "goal": ["missing_concept1", "..."],
+                "constraint": ["missing_concept1", "..."]
+            },
+            "extraction_method": "agent_semantic"
+        },
+        "instruction": guidance.get("_instruction", ""),
+    }
+
+
+def _run_agent_mode(agent_extracted, ontology, category):
+    """用 Agent 语义提取的结果算分（跳过 substring 匹配）。
+
+    Args:
+        agent_extracted: listing["_cosmo_extracted"] 字段。
+        ontology: 完整 ontology dict。
+        category: listing category（用于来源标签）。
+
+    Returns:
+        与 run() 相同结构的 dict。
+    """
+    covered = agent_extracted.get("covered_concepts", {})
+    missing = agent_extracted.get("missing_concepts", {})
+
+    per_dim = {}
+    total_matched = 0
+    total_concepts = 0
+
+    for dim in DIMENSIONS:
+        cv = list(covered.get(dim, []) or [])
+        ms = list(missing.get(dim, []) or [])
+        cnt = len(cv)
+        total = cnt + len(ms)
+        total_matched += cnt
+        total_concepts += total
+        per_dim[dim] = {
+            "covered": cnt,
+            "total": total,
+            "ratio": round(cnt / total, 4) if total else 0.0,
+        }
+
+    # 达标线 + 加权 → score (与 substring 模式公式完全一致)
+    dim_score = {}
+    for dim in DIMENSIONS:
+        cv = list(covered.get(dim, []) or [])
+        target = _TARGETS[dim]
+        dim_score[dim] = min(len(cv) / target, 1.0)
+    score = sum(dim_score[d] * _WEIGHTS[d] for d in DIMENSIONS) * 100
+    score = round(score)
+
+    # 精确覆盖率
+    coverage_ratio = round(total_matched / total_concepts, 4) if total_concepts else 0.0
+
+    # 补概念建议
+    suggestions = []
+    label_map = {
+        "use_case": "use-case / scenario",
+        "audience": "audience / persona",
+        "goal": "user goal / outcome (why people buy)",
+        "constraint": "constraint / qualifier",
+    }
+    for dim in DIMENSIONS:
+        ms = list(missing.get(dim, []) or [])
+        if ms:
+            suggestions.append(
+                f"add {label_map[dim]} concept e.g. {'/'.join(ms[:4])}"
+            )
+
+    # 来源标签
+    source = "agent_semantic"
+    if category and category in ontology:
+        source += f" ({category})"
+
+    return {
+        "score": score,
+        "coverage_ratio": coverage_ratio,
+        "covered_concepts": covered,
+        "missing_concepts": missing,
+        "per_dimension": per_dim,
+        "suggestions": suggestions,
+        "category": category or None,
+        "ontology_source": source,
+        "used_fallback": False,
+        "targets": dict(_TARGETS),
+        "weights": dict(_WEIGHTS),
+        "_extraction_method": "agent_semantic",
+    }
+
+
+# --------------------------- substring fallback ---------------------------
+
+def _run_substring_mode(data, ontology, category):
+    """用 substring 匹配算分（原逻辑，从 run() 抽离出来）。"""
     cat_ont, fallback = _get_category_ontology(ontology, category)
     text = _collect_listing_text(data)
 
@@ -171,7 +292,7 @@ def run(data):
             "ratio": round(cnt / total, 4) if total else 0.0,
         }
 
-    # 达标线子分 (命中目标数即满分), 加权 → score
+    # 达标线 + 加权 → score
     dim_score = {}
     for dim in DIMENSIONS:
         words = cat_ont.get(dim, [])
@@ -183,10 +304,10 @@ def run(data):
     score = sum(dim_score[d] * _WEIGHTS[d] for d in DIMENSIONS) * 100
     score = round(score)
 
-    # 精确覆盖率 (诚实指标: 实际命中 / 概念总数)
+    # 精确覆盖率
     coverage_ratio = round(total_matched / total_concepts, 4) if total_concepts else 0.0
 
-    # 补概念建议 (缺失维度, 每类最多 4 个示例)
+    # 补概念建议
     suggestions = []
     label_map = {
         "use_case": "use-case / scenario",
@@ -220,7 +341,44 @@ def run(data):
         "used_fallback": fallback,
         "targets": dict(_TARGETS),
         "weights": dict(_WEIGHTS),
+        "_extraction_method": "substring",
     }
+
+
+# --------------------------- 核心纯函数 ---------------------------
+
+def run(data):
+    """COSMO 意图覆盖度评估。
+
+    支持双模式：
+      - Agent 语义提取优先: data 含 _cosmo_extracted → 直接用提取结果算分
+      - substring 匹配回退: data 无 _cosmo_extracted → 走旧词库匹配
+
+    Args:
+        data: listing dict (需含 category 与若干文本字段)。
+              可选 _cosmo_extracted: Agent 提前提取的 covered/missing concepts。
+
+    Returns:
+        dict, 含:
+          score(0-100 达标线评分), coverage_ratio(0-1 精确覆盖率),
+          covered_concepts(dict per dim), missing_concepts(dict per dim),
+          per_dimension(dict per dim {covered,total,ratio}),
+          suggestions(list), category, ontology_source, used_fallback,
+          targets, weights, _extraction_method。
+    """
+    if not isinstance(data, dict):
+        data = {}
+
+    ontology = _load_ontology()
+    category = (data.get("category") or "").strip()
+
+    # ---- Agent 语义提取路径（优先）----
+    agent_extracted = data.get("_cosmo_extracted")
+    if isinstance(agent_extracted, dict) and agent_extracted.get("extraction_method") == "agent_semantic":
+        return _run_agent_mode(agent_extracted, ontology, category)
+
+    # ---- substring 匹配回退（原逻辑，不变）----
+    return _run_substring_mode(data, ontology, category)
 
 
 # --------------------------- CLI ---------------------------

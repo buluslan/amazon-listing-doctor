@@ -10,7 +10,7 @@ allowed-tools:
   - Edit
 metadata:
   category: ecommerce/amazon
-  version: 0.2.0
+  version: 0.3.0
   markets: [US, UK, DE, FR, IT, ES, JP, CA, AU]
 ---
 
@@ -42,40 +42,61 @@ metadata:
 用户给的数据
 ├─ 纯文本 / 后台导出表格？  → 直接解析归一化（首选，零依赖，最可靠）
 ├─ 网页链接（amazon 官方域名）？ → 用环境可用的抓取能力尝试；抓不全请用户补
-└─ ASIN（B0 开头 10 位）？    → 可选 SellerSprite MCP（推荐）/ 配 market 构造 URL
+└─ ASIN（B0 开头 10 位）？    → 用可用的第三方 API 拉取，或配 market 构造 URL 抓取
         ↓ 汇总
 归一化 listing JSON → 审计
 ```
 
 > ⭐ **数据获取建议**：亚马逊反爬激进，优先用专业工具取数再粘贴，反爬能力强且不碰账号风控。本 skill 专注最擅长的——归一化 + 体检 + 打分。**不内置浏览器自动化**（违背零依赖自包含原则）。URL/ASIN 抓不全很正常，拿到什么审什么，缺图片/评论请用户补，**绝不因抓不全而整个流程报废**。
 
-#### 1.1 数据分层（前台 vs 后台，v0.2.0 起）
+#### 1.1 数据分层（前台 vs 后台）
 
 输入 listing JSON 明确分为两组字段，**缺失字段触发评分降级而非报错**：
 
 | 分层 | 字段 | 来源 |
 |------|------|------|
-| **前台（visible to buyer）** | `title` / `bullets` / `description` / `images` / `brand` / `category` / `market` / `language` / `has_a_plus` / `is_parent` / `is_variation` | SellerSprite MCP（asin_detail）可取 + 用户贴图 |
-| **后台（backend-only）** | `item_highlights` / `backend_search_terms` / `attributes_filled` / `attributes_top10_expected` / `band_a_critical_6` / 父子体属性映射 | **必须从 Seller Central 后台导出**，外部 API 取不到 |
+| **前台（详情页可见）** | `title` / `bullets` / `description` / `images` / `brand` / `category` / `market` / `language` / `has_a_plus` / `attributes_filled` / `attributes_top10_expected` | 第三方 API / SP-API 均可取 |
+| **后台（详情页不可见）** | `item_highlights` / `backend_search_terms` / `band_a_critical_6` / `is_parent` / `is_variation` / 父子体属性映射 | **必须从 Seller Central 后台导出**，外部 API 取不到 |
 
-**为什么这样切**：前台数据亚马逊对外展示，第三方工具可拉；后台数据 Seller Central 才能编辑，外部 API（含 SellerSprite）都没有 `item_highlights` / `search_terms` 字段。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。
-
-#### 1.2 SellerSprite MCP 接入（v0.2.0 起，可选）
-
-如果用户环境配置了 SellerSprite API（`SELLERSPRITE_SECRET_KEY`），用 `sellersprite_fetch.py` 直接拉取 ASIN 详情页前台数据：
-
-```bash
-export SELLERSPRITE_SECRET_KEY=xxxxxxxxxxxx
-python scripts/sellersprite_fetch.py --marketplace US --asin B0DRVKZHK9
-```
-
-返回 listing JSON，前台字段（title/brand/features→bullets/zoomImageUrl→images/description/has_a_plus/category）已填，后台字段为空 + `meta.unfetched_backend` 明确列出需从 Seller Central 补的字段名。
-
-> 注意：`sellersprite_fetch.py` 是**零依赖的标准库实现**（urllib），有 `requests` 自动切换。环境变量未配置时返回 `error` 字段而非崩溃——skill 不会因缺 key 而整个流程报废。
+**为什么这样切**：前台数据 = 亚马逊详情页对买家可见的字段，第三方工具理论上都能抓；后台数据 = 仅 Seller Central 后台可编辑的字段（`backend_search_terms` 是隐藏索引字段、`item_highlights` 是部分类目的隐藏属性），外部 API 拿不到。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。
 
 归一化是 LLM 的活（输入格式千变万化），脚本只处理 JSON（确定）。缺的字段留空，对应检查自动跳过。
 
 ### 2. 全量审计
+
+#### 2.0 COSMO 语义提取（Agent 前置步骤）
+
+在跑合规脚本前，Agent 先做 COSMO 意图概念提取。**COSMO 维度不靠关键词匹配——靠 Agent 的语义理解能力，判断 listing 是否表达了用户意图。**
+
+1. 读 `references/cosmo_ontology.json` 中 `extraction_guidance` 的四维定义（use_case / audience / goal / constraint 各维度的含义 + 典型示例）
+2. 分析 listing 全文，按四维定义提取：
+   - `covered_concepts`：listing 中已表达的意图概念（用自然语言短语，不限于词表词汇）
+   - `missing_concepts`：该品类下重要但 listing 遗漏的意图概念
+   - **语义理解优先**：不要求概念词精确出现在原文——"keeps cat fed while at work" 表达了 work 场景，"perfect for morning jog" 表达了跑步场景
+   - **不编造**：缺失清单只写真正跟这个产品相关的意图，不确定的不写
+3. 将结果写入 listing JSON 的 `_cosmo_extracted` 字段，格式：
+```json
+{
+  "_cosmo_extracted": {
+    "extraction_method": "agent_semantic",
+    "covered_concepts": {
+      "use_case": ["home feeding", "office use"],
+      "audience": ["multi-pet owners", "busy professionals"],
+      "goal": ["consistent schedule", "peace of mind when away"],
+      "constraint": ["dual power backup", "BPA-free materials"]
+    },
+    "missing_concepts": {
+      "use_case": ["travel with pets"],
+      "audience": ["senior pet owners"],
+      "goal": ["weight management", "reduce pet anxiety"],
+      "constraint": ["quiet operation"]
+    }
+  }
+}
+```
+4. **Agent 不可用时自动回退**：如果未写 `_cosmo_extracted`，`cosmo_check.py` 自动走 substring 匹配（零依赖可用）
+
+#### 2.1 跑全量脚本
 
 ```bash
 python scripts/compliance_report.py --file listing.json
@@ -84,10 +105,10 @@ python scripts/compliance_report.py --file listing.json
 一次跑出全部维度：合规体检 + CDQ 评分 + A9 收录 + COSMO 意图覆盖 + Alexa 可发现性 + 图片缺陷 + 关键词分层覆盖。退出码 0=总体合规 / 1=有 FAIL。
 
 - **图片缺陷**：需 listing 含 `images` 字段（每张含 width/height/has_watermark/is_white_background/is_square）——由具备视觉能力的 LLM 分析用户贴图后填入，或用户从 Seller Central 后台导出图片组 JSON 自填。无图自动跳过。
-- **COSMO**：扫全文匹配 `references/cosmo_ontology.json` 的概念词，算四维覆盖。`goal` 维度故意偏难——listing 常堆属性词而不写"用户目标"，goal 覆盖率低正是诊断价值（指出 listing 缺意图层表达）。
+- **COSMO**：Agent 语义提取 listing 中的意图概念（基于 `extraction_guidance` 四维定义），脚本基于提取结果算达标线分 + 精确覆盖率。Agent 不可用时自动降级 substring 匹配保持可用。`goal` 维度故意偏难——listing 常堆属性词而不写"用户目标"，goal 覆盖率低正是诊断价值（指出 listing 缺意图层表达）。
 - **标题词组分诊**：把标题拆成语义词组（按标点 + 介词边界），按词性 + 合规信号给每个词组去向建议（标题必留 / 下移亮点 / 下移五点 / 删除违规），confidence=low 的词组留人工复核。只给去向不给改写。
 
-#### 2.1 评分降级（v0.2.0 起）
+#### 2.1 评分降级
 
 **原则**：缺关键字段时**显式标 score=null + reason**，不强行给 0 或 100，让用户一眼看出"这个分数是因为数据不足，不是真差"。
 
@@ -124,12 +145,12 @@ python scripts/compliance_report.py --file listing.json
   "images":[{"url":"","width":2000,"height":2000,"has_watermark":false,"is_white_background":true,"is_square":true}],
   "has_a_plus":true,
   "keywords":{"P0":[...],"P1":[...],"P2":[...]},
-  "meta":{"source":"sellersprite|paste","unfetched_backend":[...]}
+  "meta":{"source":"api|paste","unfetched_backend":[...]}
 }
 ```
-（LLM 按此 schema 归一化；缺的字段可留空，对应检查自动跳过 + 评分优雅降级。`attributes_top10_expected`/`band_a_critical_6` 不传时查 `references/category_attributes/<category>.json` 兜底，也可用户自填覆盖。`meta.unfetched_backend` 列出哪些后台字段仍待补。）
+（LLM 按此 schema 归一化；缺的字段可留空，对应检查自动跳过 + 评分优雅降级。`attributes_top10_expected`/`band_a_critical_6` 不传时查 `references/category_attributes/<category>.json` 兜底，也可用户自填覆盖。`meta.unfetched_backend` 列出哪些真正后台字段仍待补。）
 
-## 脚本清单（13 个，纯标准库）
+## 脚本清单（12 个，纯标准库）
 
 | 脚本 | 作用 | 退出码 |
 |------|------|--------|
@@ -140,11 +161,10 @@ python scripts/compliance_report.py --file listing.json
 | image_check.py | 图片缺陷 → CDQ 图片分 | 0/1 |
 | cdq_score.py | CDQ 6 维评分（自动读图片真实缺陷 + 注入标题合规状态） | 0 |
 | indexability.py | A9 收录健康度 | 0 |
-| **cosmo_check.py** | **COSMO 意图覆盖度（四维概念覆盖 + 缺失清单）** | 0 |
+| **cosmo_check.py** | **COSMO 意图覆盖度（Agent 语义提取优先 / substring 匹配回退）** | 0 |
 | alexa_check.py | Alexa 可发现性（10 类目分词库 + 通用词库） | 0 |
 | **title_triage.py** | **标题词组分诊（词组→去向建议：必留/下移/删除）** | 0 |
 | check_keyword_layering.py | 关键词四层去重 + 加权索引分 | 0 |
-| **sellersprite_fetch.py** | **SellerSprite MCP 入口（ASIN+marketplace → listing JSON 前台字段）** | 0/1 |
 | compliance_report.py | **汇总全部 → 完整报告（含 data_coverage 降级说明）** | 0/1 |
 
 统一 CLI：stdin JSON / `--data '<json>'` / `--file <path>` 输入；stdout 输出 JSON。每个脚本都是 `run(data)->dict` 纯函数，可被 `compliance_report` 通过 import 直接调用。
@@ -153,7 +173,7 @@ python scripts/compliance_report.py --file listing.json
 
 | 文件 | 何时读 |
 |------|--------|
-| `cosmo_ontology.json` | 用户问 COSMO/意图覆盖时；脚本自动读 |
+| `cosmo_ontology.json` | Agent 语义提取读 `extraction_guidance` 做概念提取；脚本 substring fallback 读 `_common` 词表；cosmo_check.py 自动读 |
 | `category_attributes/<category>.json` | 查类目 top10 必填属性（公开版；用户可自填覆盖） |
 | `new-rules-2026.md` | 用户问"为什么"时 |
 | `sites-overrides.md` | 非 US 站 |
@@ -163,8 +183,8 @@ python scripts/compliance_report.py --file listing.json
 
 - **合规校验全脚本化**：绝不靠"请避免重复词"这类措辞约束 LLM，必须跑脚本（LLM 会跳过文字约束）
 - **零依赖自包含**：不绑任何特定外部 skill。输入靠用户提供（粘贴/导出为主），图片靠视觉 LLM 分析；联网抓取只是可选增强且不写死工具名。用"陌生用户 clone 下来就能跑"检验设计
-- **数据分层（v0.2.0）**：前台数据靠 SellerSprite MCP / 粘贴，后台数据必须 Seller Central 导出；缺字段优雅降级，不阻塞流程
-- **多语言虚词豁免（v0.2.0）**：bullets 关键词堆砌按 `language` 字段取虚词表；德语 listing 不再因 mit/für/durch/aus 等介词被误判堆砌。promo/subjective 黑名单覆盖 de/fr/it/es
+- **数据分层**：前台数据靠第三方 API 拉取或用户粘贴，后台数据必须 Seller Central 导出；缺字段优雅降级，不阻塞流程
+- **多语言虚词豁免**：bullets 关键词堆砌按 `language` 字段取虚词表；德语 listing 不再因 mit/für/durch/aus 等介词被误判堆砌。promo/subjective 黑名单覆盖 de/fr/it/es
 - **COSMO 诚实标注**：COSMO 无官方质检权重，本 skill 的 COSMO 维度是基于公开论文（WWW 2024）精神的社区概念覆盖诊断，**不是官方 COSMO 分**。报告里如实标注
 - **媒体类目豁免**：Books/Music/DVD/Video 不受 75 字符限制，脚本按 category 自动识别
 - **不与关键词数据库竞争**：关键词由用户自带或竞品 ASIN 抽取

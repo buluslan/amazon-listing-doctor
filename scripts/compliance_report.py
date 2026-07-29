@@ -10,20 +10,21 @@
 # 输出：stdout 一个 JSON 对象（完整 output-template.json 结构）
 # 退出码：0=总体合规 / 1=有 FAIL
 #
-# 数据分层（2026-07-29）：
-#   - 前台（frontend）: title / bullets / description / images / has_a_plus /
-#                       brand / category / market / language / is_parent / is_variation
-#     可由 SellerSprite MCP（asin_detail）取数
-#   - 后台（backend）:  item_highlights / backend_search_terms / attributes_filled /
-#                       attributes_top10_expected / band_a_critical_6
-#     必须从 Seller Central 后台导出
+# 数据分层：
+#   - 前台（详情页可见）: title / bullets / description / images / has_a_plus /
+#                         brand / category / market / language / attributes_filled /
+#                         attributes_top10_expected
+#     买家在 Amazon 详情页可直接看到的字段，第三方 API / SP-API 均可取
+#   - 后台（仅 Seller Central）: item_highlights / backend_search_terms / band_a_critical_6 /
+#                                 is_parent / is_variation / parent_sku_attrs
+#     详情页不显示，必须从 Seller Central 后台导出
 #   - 评分维度对各字段的最低依赖：
 #     * COSMO / Alexa:  title + 至少 1 个意图来源（bullets / item_highlights / description）
 #     * CDQ:             title（合规判定） + attributes_filled 或 attributes_top10_expected +
 #                        bullets（≥3） + images（含元数据）+ has_a_plus
 #     * Indexability:    title（核心词前置） + backend_search_terms + attributes
 #
-# 降级原则（2026-07-29）：
+# 降级原则：
 #   - 缺关键字段时，相关评分维度显式返回 score=null + reason=字段缺失，不强行给 0/100
 #   - 汇总报告增加 data_coverage 板块：标记已收字段、缺失字段、可解锁维度
 
@@ -58,9 +59,10 @@ DIMENSION_REQUIRED_FIELDS = {
 
 
 # 前台 vs 后台字段清单（用于 data_coverage 报告）
+# 原则：详情页可见 = 前台；仅 Seller Central 后台可编辑/查看 = 后台
 FRONTEND_FIELDS = [
     ("title", "商品标题（前台核心）"),
-    ("bullets", "五点描述（前台）"),
+    ("bullets", "五点描述（前台详情页，5 条卖点）"),
     ("description", "产品详情 / A+ 描述（前台）"),
     ("images", "图片组（含 width/height/is_white_background 等元数据）"),
     ("brand", "品牌名"),
@@ -68,13 +70,13 @@ FRONTEND_FIELDS = [
     ("has_a_plus", "A+ 内容存在性（badge.ebc）"),
     ("market", "目标站点"),
     ("language", "目标语言"),
+    ("attributes_filled", "已填属性列表（前台 Product Details 表格可见）"),
+    ("attributes_top10_expected", "类目 Top10 必填属性清单（参考项，可查 category_attributes/<cat>.json 兜底）"),
 ]
 
 BACKEND_FIELDS = [
-    ("item_highlights", "商品亮点（≤125 字符，A9 强索引）"),
-    ("backend_search_terms", "后台搜索词（≤250 字节）"),
-    ("attributes_filled", "已填属性列表（structured attributes）"),
-    ("attributes_top10_expected", "类目 Top10 必填属性清单"),
+    ("item_highlights", "商品亮点（≤125 字符，A9 强索引，部分 listing 不填）"),
+    ("backend_search_terms", "后台搜索词（≤250 字节，详情页不显示，纯 A9 索引）"),
     ("band_a_critical_6", "Band A 关键 6 项"),
     ("is_parent", "父 ASIN 标记"),
     ("is_variation", "子体 ASIN 标记"),
@@ -151,7 +153,7 @@ def _assess_data_coverage(data):
         unlock.append({
             "field": "attributes_filled + attributes_top10_expected",
             "label": "补 structured attributes → 解锁 CDQ 30% 权重 + A9 属性完整度",
-            "source": "Seller Central 后台导出 或 类目属性文件 category_attributes/<cat>.json",
+            "source": "第三方 API（attributes 字段）/ 类目属性文件 category_attributes/<cat>.json",
         })
     if not (_is_present(data.get("is_parent"))
             and _is_present(data.get("is_variation"))):
@@ -164,7 +166,7 @@ def _assess_data_coverage(data):
         unlock.append({
             "field": "images",
             "label": "补图片组（含 width/height/is_white_background/is_square 元数据）→ 解锁 CDQ 15% 权重",
-            "source": "Claude 视觉分析用户贴图 后填入，或 SellerSprite imageUrl/zoomImageUrl",
+            "source": "Claude 视觉分析用户贴图后填入，或第三方 API 取主图 URL",
         })
 
     return {
