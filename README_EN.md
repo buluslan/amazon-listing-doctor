@@ -13,7 +13,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-0.4.0-black.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.1-black.svg)]()
 [![中文](https://img.shields.io/badge/lang-中文-red.svg)](README.md)
 
 **CDQ Quality Score · A9 Indexability · COSMO Intent Coverage · Alexa Discoverability · Compliance · Title Triage**
@@ -90,7 +90,7 @@ Missing fields are fine — corresponding checks auto-skip, no errors. See `SKIL
 - **CDQ**: 6-dimension weighted (attributes 30% / title 25% / variation 20% / image 15% / bullets 5% / A+ 5%) → 0-100 score + grade
 - **A9**: core keyword position + backend hygiene + attribute completeness + effective index terms
 - **COSMO**: scans full text against `references/cosmo_ontology.json` commonsense concepts, 4-dimension coverage (use_case / audience / goal / constraint) + missing list
-- **Alexa**: simulates real buyer questions to an AI shopping assistant, judges whether the listing can answer them (AEO buyer Q&A, 10-category question bank; substring word-match fallback)
+- **Alexa**: simulates real buyer questions to an AI shopping assistant, judges whether the listing can answer them (AEO buyer Q&A, Agent generates questions per product from a protocol; substring word-match fallback)
 - **Title Triage**: splits the title into semantic phrases, gives placement advice per phrase (keep in title / move to highlights / move to bullets / drop violation) — diagnosis, not rewriting
 
 ## 📁 Structure
@@ -111,7 +111,7 @@ amazon-listing-doctor/
 │   └── check_keyword_layering.py
 ├── references/               # Rules & lexicons (public)
 │   ├── cosmo_ontology.json   # COSMO concept ontology (4 dims + 10 categories)
-│   ├── alexa_question_bank.json # ALEXA AEO buyer-question bank (10 categories)
+│   ├── alexa_question_protocol.md # ALEXA AEO question-generation protocol
 │   ├── cdq_weights.json      # CDQ weights
 │   ├── rules.json            # Compliance hard rules
 │   └── ...
@@ -121,6 +121,10 @@ amazon-listing-doctor/
 ```
 
 ## 📈 Changelog
+
+**v0.4.1 — ALEXA question generation switched to protocol-driven**
+
+The v0.4.0 fixed question bank (10 categories × 24) showed real category bias in testing (Electronics read like an earbuds-only sheet). Switched to: **Agent reads a question-generation protocol (8-aspect framework) and generates questions tailored to each specific product on the fly**, removing the bias. New `alexa_question_protocol.md`; `alexa_question_bank.json` removed.
 
 **v0.4.0 — ALEXA rebuilt as AEO (buyer Q&A)**
 - ALEXA upgraded from substring word-matching to **AEO (Answer Engine Optimization)**: simulates real buyer questions to an AI shopping assistant, judges whether the listing can be answered/recommended (buyer_alignment 3-state: covered / partial / missing)

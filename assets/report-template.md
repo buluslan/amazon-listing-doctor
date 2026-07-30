@@ -177,6 +177,11 @@
 
 **可发现性**: **`{{alexa_discoverability.score}}` / 100** · 方式：`{{alexa_discoverability._extraction_method}}`（来源：`{{alexa_discoverability.lexicon_source}}`）
 
+**产品理解**：`{{alexa_discoverability.product}}`
+
+**Agent 针对该产品生成的买家问题**（共 `{{alexa_discoverability.total_questions}}` 个，模拟真实买家向 AI 购物助手提问）：
+{{alexa_discoverability.buyer_questions}}
+
 | 回答三态 | 数量 | 问题示例 |
 |---|---|---|
 | ✅ 完全可答（covered） | `{{alexa_discoverability.covered_count}}` | `{{alexa_discoverability.buyer_alignment.covered}}` |

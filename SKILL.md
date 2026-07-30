@@ -10,7 +10,7 @@ allowed-tools:
   - Edit
 metadata:
   category: ecommerce/amazon
-  version: 0.4.0
+  version: 0.4.1
   markets: [US, UK, DE, FR, IT, ES, JP, CA, AU]
 ---
 
@@ -100,17 +100,21 @@ metadata:
 
 ALEXA 维度跟 COSMO 本质差异化：**COSMO 判断 listing 表达了哪些意图概念（静态内容完整性）；ALEXA 模拟真实买家向 AI 购物助手提问，判断 listing 能不能被回答/推荐（动态可发现性）**。两个前置步骤可由 Agent 一次性完成——读一遍 listing，先做 COSMO 概念提取，再做 ALEXA 买家问题回答判断。
 
-1. 调 `alexa_check.get_agent_prompt(data)`，拿到 listing 全文 + 该类目买家问题池（来自 `references/alexa_question_bank.json`，10 类目 × 24 问真实买家口吻）+ 输出 schema
-2. Agent 模拟"AI 购物助手（Alexa for Shopping / Rufus）读到这条 listing 后，能否回答每个买家问题"，对每个问题判断三态：
-   - `covered`：listing 完全能回答（含明确可查信息）
-   - `partial`：listing 提及但信息不全/不清晰
-   - `missing`：listing 完全没回答
+1. 调 `alexa_check.get_agent_prompt(data)`，拿到 listing 全文 + 问题生成规范（来自 `references/alexa_question_protocol.md`，8 aspect 提问框架 + 口吻 + 红线）+ 输出 schema
+2. Agent 一次完成两件事：
+   - **生成问题**：按规范的 8 个 aspect（场景适配/人群适配/兼容性/耐用/易用/规格/对比/价值顾虑），针对【该具体产品】生成 14-18 个真实买家问题（**贴合该产品，不套用其他子品类**——手机不问耳机问题、猫用品不问狗问题；固定问题库会有品类偏向，故改为规范驱动）
+   - **判断回答**：对每个生成的问题判断三态：
+     - `covered`：listing 完全能回答（含明确可查信息）
+     - `partial`：listing 提及但信息不全/不清晰
+     - `missing`：listing 完全没回答
    - **严格口径**："compatible with iPhone 15" 能回答 "Does this work with iPhone?"，但泛泛参数表不能回答 "Is this good for running?"（除非 listing 明确把产品跟跑步关联）。不确定的不算 covered
-3. 将结果写入 listing JSON 的 `_alexa_aeo_result` 字段，格式：
+3. 将结果写入 listing JSON 的 `_alexa_aeo_result` 字段，格式（`buyer_questions` 会展示在报告里，卖家能看到 Agent 生成了哪些问题）：
 ```json
 {
   "_alexa_aeo_result": {
     "extraction_method": "aeo_agent",
+    "product": "蓝牙降噪耳机，主打通勤/运动，买家多为年轻数码用户",
+    "buyer_questions": ["Are these good for running?", "Does this work with iPhone?", "...共 14-18 问"],
     "buyer_alignment": {
       "covered": ["Are these waterproof?", "How long does the battery last?"],
       "partial": ["Is this easy to pair?"],
@@ -192,7 +196,7 @@ python scripts/compliance_report.py --file listing.json
 | indexability.py | A9 收录健康度 | 0 |
 | **cosmo_check.py** | **COSMO 意图覆盖度（Agent 语义提取优先 / substring 匹配回退）** | 0 |
 | alexa_check.py | Alexa 可发现性（AEO 买家问答优先 / substring 词匹配兜底） | 0 |
-| alexa_question_gen.py | ALEXA AEO 买家问题池（10 类目问句库 + lexicon 种子扩写） | 0 |
+| alexa_question_gen.py | ALEXA AEO 问题生成规范加载器（打印 protocol 供查看） | 0 |
 | **title_triage.py** | **标题词组分诊（词组→去向建议：必留/下移/删除）** | 0 |
 | check_keyword_layering.py | 关键词四层去重 + 加权索引分 | 0 |
 | compliance_report.py | **汇总全部 → 完整报告（含 data_coverage 降级说明）** | 0/1 |
@@ -207,7 +211,7 @@ python scripts/compliance_report.py --file listing.json
 | `category_attributes/<category>.json` | 查类目 top10 必填属性（公开版；用户可自填覆盖） |
 | `new-rules-2026.md` | 用户问"为什么"时 |
 | `sites-overrides.md` | 非 US 站 |
-| `alexa_question_bank.json` | ALEXA AEO 模式：Agent 取该类目买家问题池（`alexa_check.get_agent_prompt` 自动读） |
+| `alexa_question_protocol.md` | ALEXA AEO 模式：Agent 读规范针对该产品生成买家问题（`alexa_check.get_agent_prompt` 自动读） |
 | `rules.json`/`cdq_weights.json`/`indexability_rules.json`/`alexa_lexicon.json`/`image_rules.json` | 脚本自动读 |
 
 ## 重要原则

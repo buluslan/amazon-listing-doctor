@@ -112,6 +112,8 @@
     "_comment": "AEO 双模式。AEO 模式输出 buyer_alignment 三态；无 _alexa_aeo_result 时降级为 substring 词匹配，输出 scene_coverage/audience_coverage/limit_coverage/missing_* 字段。",
     "score": 0,
     "_extraction_method": "aeo_agent",
+    "product": "",
+    "buyer_questions": [],
     "buyer_alignment": {
       "covered": [],
       "partial": [],

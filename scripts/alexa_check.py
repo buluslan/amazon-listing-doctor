@@ -7,8 +7,8 @@ ALEXA 跟 COSMO 本质差异化：
             （动态可发现性，AEO：Answer Engine Optimization）
 
 双模式（镜像 cosmo_check.py 的双模式架构）：
-  - AEO 模式（优先）：data 含 _alexa_aeo_result 时，用 Agent 对买家问题池的回答质量
-    （buyer_alignment 三态：covered / partial / missing）算分。
+  - AEO 模式（优先）：data 含 _alexa_aeo_result 时，用 Agent 针对该产品生成的买家问题
+    的回答质量（buyer_alignment 三态：covered / partial / missing）算分。
   - substring 兜底：data 无 _alexa_aeo_result 时，走原场景/人群/限制词匹配（零依赖）。
 
 AEO 算分（区别于 COSMO 的概念覆盖）：
@@ -18,7 +18,7 @@ AEO 算分（区别于 COSMO 的概念覆盖）：
 用法：
   # Agent 前置：获取 AEO 提取提示词
   from alexa_check import get_agent_prompt
-  ctx = get_agent_prompt(data)  # → listing_text + buyer_questions + output_schema
+  ctx = get_agent_prompt(data)  # → listing_text + question_protocol + output_schema
 
   # 然后：Agent 判断每个买家问题的回答三态 → 写回 data["_alexa_aeo_result"] → run(data)
 """
@@ -31,12 +31,7 @@ from pathlib import Path
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 LEXICON_PATH = SKILL_ROOT / "references" / "alexa_lexicon.json"
-
-# AEO 模式用的问题池模块（缺之也能跑 substring 兜底）
-try:
-    from alexa_question_gen import load_question_bank
-except Exception:
-    load_question_bank = None
+PROTOCOL_PATH = SKILL_ROOT / "references" / "alexa_question_protocol.md"
 
 # ---- substring 兜底模式参数（保留原值，零依赖可复现）----
 TARGET_SCENE = 2
@@ -58,6 +53,16 @@ def _load_lexicon():
     if not LEXICON_PATH.exists():
         return {}
     return json.loads(LEXICON_PATH.read_text(encoding="utf-8"))
+
+
+def _load_protocol():
+    """加载 AEO 问题生成规范（alexa_question_protocol.md）。
+
+    Agent 读规范 + listing，针对【该具体产品】生成买家问题（替代固定问题库，消除品类偏向）。
+    """
+    if not PROTOCOL_PATH.exists():
+        return ""
+    return PROTOCOL_PATH.read_text(encoding="utf-8")
 
 
 def _get_category_lexicon(lexicon, category):
@@ -134,41 +139,38 @@ def get_agent_prompt(data):
     Returns:
         dict:
           - listing_text: listing 全文（同 _collect_listing_text 输出）
-          - buyer_questions: 该类目买家问题池（来自 alexa_question_bank）
-          - instruction: AEO 判断指令（严格三态口径）
-          - output_schema: Agent 应输出的 JSON 格式说明
+          - question_protocol: 问题生成规范（Agent 据此针对该产品生成问题，替代固定问题库）
+          - instruction: AEO 生成+判断指令
+          - output_schema: Agent 应输出的 JSON 格式（含 product / buyer_questions / buyer_alignment）
     """
     if not isinstance(data, dict):
         data = {}
-    category = (data.get("category") or "").strip()
     listing_text = _collect_listing_text(data)
-
-    questions = []
-    if load_question_bank is not None:
-        questions = load_question_bank(category)
+    protocol = _load_protocol()
 
     return {
         "listing_text": listing_text,
-        "buyer_questions": questions,
+        "question_protocol": protocol,
         "instruction": (
-            "You simulate an AI shopping assistant (Alexa for Shopping / Rufus) reading this Amazon listing. "
-            "For each buyer question, judge whether the listing contains enough information for the assistant "
-            "to ANSWER it confidently. Output three buckets: "
-            "covered = listing fully answers (explicit, findable info); "
-            "partial = listing mentions the topic but the answer is incomplete or unclear; "
-            "missing = listing does not address it at all. "
-            "Be strict and buyer-realistic: 'compatible with iPhone 15' covers 'Does this work with iPhone?' "
-            "but a generic spec list does NOT cover 'Is this good for running?' unless the listing explicitly "
-            "ties the product to running. Each question goes to exactly one bucket. Do not invent info not in "
-            "the listing."
+            "Read the question_protocol below — it defines an 8-aspect framework for generating real buyer questions. "
+            "Do this in one pass: (1) understand what THIS product is from the listing; "
+            "(2) generate 14-18 real buyer questions tailored to THIS specific product across the 8 aspects — "
+            "DO NOT reuse generic or other-subcategory questions (e.g. don't ask earbuds questions for a phone, "
+            "don't ask dog questions for a cat product); "
+            "(3) for each generated question, judge whether the listing answers it: covered / partial / missing "
+            "(strict — a generic spec list does NOT cover 'is this good for running?' unless the listing ties the "
+            "product to running; uncertain → partial or missing, never pad covered). "
+            "Return product, buyer_questions, and buyer_alignment per the schema."
         ),
         "output_schema": {
+            "extraction_method": "aeo_agent",
+            "product": "one line: what this product is + core attributes + typical buyer",
+            "buyer_questions": ["14-18 real buyer questions tailored to THIS product"],
             "buyer_alignment": {
                 "covered": ["question the listing fully answers"],
                 "partial": ["question the listing partially addresses"],
                 "missing": ["question the listing does not answer"],
             },
-            "extraction_method": "aeo_agent",
         },
     }
 
@@ -180,11 +182,16 @@ def _run_aeo_mode(aeo_result, category):
     """
     if not isinstance(aeo_result, dict):
         aeo_result = {}
+    product = aeo_result.get("product", "") or ""
+    buyer_questions = list(aeo_result.get("buyer_questions", []) or [])
     alignment = aeo_result.get("buyer_alignment", {}) if isinstance(aeo_result.get("buyer_alignment"), dict) else {}
     covered = list(alignment.get("covered", []) or [])
     partial = list(alignment.get("partial", []) or [])
     missing = list(alignment.get("missing", []) or [])
     total = len(covered) + len(partial) + len(missing)
+    # 三态为空但 Agent 生成了问题 → 用问题数兜底（防 Agent 只填 buyer_questions 漏分态）
+    if total == 0 and buyer_questions:
+        total = len(buyer_questions)
 
     score = (
         round((len(covered) * W_COVERED + len(partial) * W_PARTIAL) / total * 100)
@@ -201,6 +208,8 @@ def _run_aeo_mode(aeo_result, category):
 
     return {
         "score": score,
+        "product": product,
+        "buyer_questions": buyer_questions,
         "buyer_alignment": {
             "covered": covered,
             "partial": partial,

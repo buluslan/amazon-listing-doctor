@@ -14,7 +14,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-0.4.0-black.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.1-black.svg)]()
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](README_EN.md)
 
 **CDQ 质量分 · A9 收录 · COSMO 意图覆盖 · Alexa 可发现性 · 合规体检 · 标题词组分诊**
@@ -119,7 +119,7 @@ data_coverage.unlock_dimensions: [补 item_highlights → 解锁 A9 高亮强度
 - **CDQ**:6 维加权(属性 30% / 标题 25% / 变体 20% / 图片 15% / 五点 5% / A+ 5%)→ 0-100 分 + 档位
 - **A9**:核心词前置位置 + backend 卫生度 + 属性完整度 + 有效索引词
 - **COSMO**:扫全文匹配 `references/cosmo_ontology.json` 的常识概念,四维覆盖(use_case / audience / goal / constraint)+ 缺失清单
-- **Alexa**:模拟买家向 AI 购物助手提问,判断 listing 能否被回答(AEO 买家问答,10 类目问句库;substring 词匹配兜底)
+- **Alexa**:模拟买家向 AI 购物助手提问,判断 listing 能否被回答(AEO 买家问答,Agent 按规范针对具体产品生成问题;substring 词匹配兜底)
 - **标题词组分诊**:把标题拆成语义词组,按词性 + 合规信号给去向建议(标题必留 / 下移亮点 / 下移五点 / 删除违规),告诉你每个词该去哪——诊断不是改写
 
 ## 📁 结构
@@ -134,13 +134,13 @@ amazon-listing-doctor/
 │   ├── title_triage.py       # 标题词组分诊(去向建议)
 │   ├── indexability.py       # A9 收录
 │   ├── alexa_check.py        # Alexa 可发现性(AEO 买家问答)
-│   ├── alexa_question_gen.py # ALEXA AEO 买家问题池
+│   ├── alexa_question_gen.py # ALEXA AEO 规范加载器
 │   ├── image_check.py        # 图片缺陷
 │   ├── lint_title/highlights/bullets/backend.py  # 合规校验
 │   └── check_keyword_layering.py
 ├── references/               # 规则与词库(公开版)
 │   ├── cosmo_ontology.json   # COSMO 概念本体(4 维 + 10 类目分词)
-│   ├── alexa_question_bank.json # ALEXA AEO 买家问题库(10 类目)
+│   ├── alexa_question_protocol.md # ALEXA AEO 问题生成规范
 │   ├── cdq_weights.json      # CDQ 权重
 │   ├── rules.json            # 合规硬规则(含 de/fr/it/es 多语言黑名单)
 │   └── ...
@@ -150,6 +150,10 @@ amazon-listing-doctor/
 ```
 
 ## 📈 更新日志
+
+**v0.4.1 — ALEXA 问题生成改为规范驱动**
+
+v0.4.0 的固定问题库(10 类目 × 24 问)实测有品类偏向(Electronics 写成耳机专场、Pet 写成狗用品),改为:**Agent 读问题生成规范(8 aspect 框架),针对具体产品现场生成买家问题**,消除品类局限。新增 `alexa_question_protocol.md`,废弃 `alexa_question_bank.json`。
 
 **v0.4.0 — ALEXA 维度重构(AEO 买家问答)**
 - ALEXA 从 substring 词匹配升级为 **AEO(Answer Engine Optimization)**:模拟真实买家向 AI 购物助手提问,判断 listing 能否被回答/推荐(buyer_alignment 三态:covered / partial / missing)
