@@ -6,7 +6,7 @@
 
 # 🩺 Amazon Listing Doctor
 
-**根据亚马逊7月27日正式上线的标题新规，基于 CDQ / A9 / COSMO / Alexa 四大底座的亚马逊 Listing 全身体检 + 打分 Skill**
+**根据亚马逊7月27日正式上线的标题新规，基于 CDQ / A9 / COSMO / Alexa 四大底座的亚马逊 Listing 体检 + 打分 Skill**
 
 **想了解更多最新AI行业动态,AI+电商/广告的行业实践方法,人与AI如何协作共生的思考,请关注公众号:【新西楼.AI】**
 
@@ -148,22 +148,6 @@ amazon-listing-doctor/
     ├── output-template.json
     └── report-template.md
 ```
-
-## 📈 更新日志
-
-**v0.4.1 — ALEXA 问题生成改为规范驱动**
-
-v0.4.0 的固定问题库(10 类目 × 24 问)实测有品类偏向(Electronics 写成耳机专场、Pet 写成狗用品),改为:**Agent 读问题生成规范(8 aspect 框架),针对具体产品现场生成买家问题**,消除品类局限。新增 `alexa_question_protocol.md`,废弃 `alexa_question_bank.json`。
-
-**v0.4.0 — ALEXA 维度重构(AEO 买家问答)**
-- ALEXA 从 substring 词匹配升级为 **AEO(Answer Engine Optimization)**:模拟真实买家向 AI 购物助手提问,判断 listing 能否被回答/推荐(buyer_alignment 三态:covered / partial / missing)
-- COSMO 吸收 ALEXA 词库(scene/audience/limitation → use_case/audience/constraint),统一走 agent 语义;两维度从重叠变互补:**COSMO 看内容写全没,ALEXA 看能不能接住买家的问**
-- 新增 `alexa_question_bank.json`(10 类目 × 24 真实买家问句)+ `alexa_question_gen.py`
-- 零依赖不破:无 `_alexa_aeo_result` 时自动回退 substring 词匹配
-
-**v0.3.0 — COSMO Agent 语义提取**(固定词库 → Agent 语义理解)
-
-**v0.2.0 — 数据分层 + 多语言修复 + 评分降级**
 
 ## 📜 License
 
