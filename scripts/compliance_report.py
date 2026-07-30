@@ -455,19 +455,19 @@ def run(data):
                 "缺 bullets / item_highlights，COSMO 意图扫描范围太小"
             )
 
-    # Alexa：缺 title → score=null
+    # Alexa：缺 title → score=null（AEO 买家问题回答评估）
     if isinstance(alexa_out, dict):
         alexa_out.setdefault("input_available", has_title and has_bullets)
         alexa_out.setdefault("input_unavailable_reason", None)
         if not has_title:
             alexa_out["score"] = None
             alexa_out["input_available"] = False
-            alexa_out["input_unavailable_reason"] = "缺 title，Alexa 场景/人群扫描无文本"
+            alexa_out["input_unavailable_reason"] = "缺 title，Alexa 可发现性评估无文本"
         elif not (has_bullets or has_highlights):
             alexa_out["score"] = None
             alexa_out["input_available"] = False
             alexa_out["input_unavailable_reason"] = (
-                "缺 bullets / item_highlights，Alexa 意图覆盖范围太小"
+                "缺 bullets / item_highlights，Alexa 买家问题回答评估范围太小"
             )
 
     # Indexability：缺 title → core_keyword=null；缺 backend → backend_hygiene=null；

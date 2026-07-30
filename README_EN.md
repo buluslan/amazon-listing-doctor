@@ -13,7 +13,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-0.1.0-black.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.0-black.svg)]()
 [![中文](https://img.shields.io/badge/lang-中文-red.svg)](README.md)
 
 **CDQ Quality Score · A9 Indexability · COSMO Intent Coverage · Alexa Discoverability · Compliance · Title Triage**
@@ -43,7 +43,7 @@ One command, one multi-dimensional health report for your listing:
 | **CDQ Quality Score** (main) | Amazon's internal 6-metric ASIN quality score | How good is my content quality? |
 | **A9 Indexability** | A9 search indexing logic | Can my listing be found in search? |
 | **COSMO Intent Coverage** | Amazon commonsense knowledge graph (WWW 2024) | Does my listing match user intent? |
-| **Alexa Discoverability** | Alexa for Shopping (AI shopping assistant) | Can the AI shopping assistant understand and recommend me? |
+| **Alexa Discoverability** | Alexa for Shopping / Rufus (AEO buyer Q&A) | Will the AI shopping assistant recommend me when answering buyer questions? |
 | **Compliance** | July-2026 new rules | Any violations? |
 | **Title Triage** | Part-of-speech + compliance signals | Which title words to keep / move / drop? |
 
@@ -90,7 +90,7 @@ Missing fields are fine — corresponding checks auto-skip, no errors. See `SKIL
 - **CDQ**: 6-dimension weighted (attributes 30% / title 25% / variation 20% / image 15% / bullets 5% / A+ 5%) → 0-100 score + grade
 - **A9**: core keyword position + backend hygiene + attribute completeness + effective index terms
 - **COSMO**: scans full text against `references/cosmo_ontology.json` commonsense concepts, 4-dimension coverage (use_case / audience / goal / constraint) + missing list
-- **Alexa**: scene / audience / limitation word coverage (10 category lexicons + common lexicon, auto-selected by category)
+- **Alexa**: simulates real buyer questions to an AI shopping assistant, judges whether the listing can answer them (AEO buyer Q&A, 10-category question bank; substring word-match fallback)
 - **Title Triage**: splits the title into semantic phrases, gives placement advice per phrase (keep in title / move to highlights / move to bullets / drop violation) — diagnosis, not rewriting
 
 ## 📁 Structure
@@ -98,18 +98,20 @@ Missing fields are fine — corresponding checks auto-skip, no errors. See `SKIL
 ```
 amazon-listing-doctor/
 ├── SKILL.md                  # Quality-check router (workflow + principles)
-├── scripts/                  # 12 pure-stdlib Python scripts
+├── scripts/                  # 13 pure-stdlib Python scripts
 │   ├── compliance_report.py  # Aggregator (main entry)
 │   ├── cdq_score.py          # CDQ 6-dimension scoring
 │   ├── cosmo_check.py        # COSMO intent coverage (this project)
 │   ├── title_triage.py       # Title triage (placement advice)
 │   ├── indexability.py       # A9 indexability
-│   ├── alexa_check.py        # Alexa discoverability
+│   ├── alexa_check.py        # Alexa discoverability (AEO buyer Q&A)
+│   ├── alexa_question_gen.py # ALEXA AEO buyer-question pool
 │   ├── image_check.py        # Image defects
 │   ├── lint_title/highlights/bullets/backend.py  # Compliance checks
 │   └── check_keyword_layering.py
 ├── references/               # Rules & lexicons (public)
-│   ├── cosmo_ontology.json   # COSMO concept ontology (4 dimensions)
+│   ├── cosmo_ontology.json   # COSMO concept ontology (4 dims + 10 categories)
+│   ├── alexa_question_bank.json # ALEXA AEO buyer-question bank (10 categories)
 │   ├── cdq_weights.json      # CDQ weights
 │   ├── rules.json            # Compliance hard rules
 │   └── ...
@@ -117,6 +119,18 @@ amazon-listing-doctor/
     ├── output-template.json
     └── report-template.md
 ```
+
+## 📈 Changelog
+
+**v0.4.0 — ALEXA rebuilt as AEO (buyer Q&A)**
+- ALEXA upgraded from substring word-matching to **AEO (Answer Engine Optimization)**: simulates real buyer questions to an AI shopping assistant, judges whether the listing can be answered/recommended (buyer_alignment 3-state: covered / partial / missing)
+- COSMO absorbed ALEXA's lexicons (scene/audience/limitation → use_case/audience/constraint), unified under agent semantic extraction; the two dimensions go from overlapping to complementary: **COSMO checks whether content is complete, ALEXA checks whether it can answer buyers' questions**
+- New `alexa_question_bank.json` (10 categories × 24 real buyer questions) + `alexa_question_gen.py`
+- Zero-dependency preserved: falls back to substring word-matching when no `_alexa_aeo_result`
+
+**v0.3.0 — COSMO agent semantic extraction**
+
+**v0.2.0 — data layering + multilingual fixes + score degradation**
 
 ## 📜 License
 

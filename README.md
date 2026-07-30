@@ -14,7 +14,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-0.2.0-black.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.0-black.svg)]()
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](README_EN.md)
 
 **CDQ 质量分 · A9 收录 · COSMO 意图覆盖 · Alexa 可发现性 · 合规体检 · 标题词组分诊**
@@ -44,7 +44,7 @@ Amazon Listing Doctor 是一款 **Agent 原生** 的亚马逊 Listing 质检 Ski
 | **CDQ 质量分**(主总分) | 亚马逊内部 6 维 ASIN 质量评分 | 我的内容质量能打几分? |
 | **A9 收录健康度** | A9 搜索收录逻辑 | 我的 Listing 能不能被搜到? |
 | **COSMO 意图覆盖度** | 亚马逊常识知识图谱(WWW 2024) | 我的 Listing 对不对得上用户意图? |
-| **Alexa 可发现性** | Alexa for Shopping（AI 购物助手） | AI 购物助手能理解并推荐我吗? |
+| **Alexa 可发现性** | Alexa for Shopping / Rufus（AEO 买家问答） | AI 购物助手回答买家提问时会推荐我吗? |
 | **合规体检** | 2026-07-27 新规 | 我有没有违规? |
 | **标题词组分诊** | 词性 + 合规信号 | 标题里每个词该留 / 该挪 / 该删? |
 
@@ -119,7 +119,7 @@ data_coverage.unlock_dimensions: [补 item_highlights → 解锁 A9 高亮强度
 - **CDQ**:6 维加权(属性 30% / 标题 25% / 变体 20% / 图片 15% / 五点 5% / A+ 5%)→ 0-100 分 + 档位
 - **A9**:核心词前置位置 + backend 卫生度 + 属性完整度 + 有效索引词
 - **COSMO**:扫全文匹配 `references/cosmo_ontology.json` 的常识概念,四维覆盖(use_case / audience / goal / constraint)+ 缺失清单
-- **Alexa**:场景 / 人群 / 限制词覆盖(10 类目分词库 + 通用词库,按 category 自动取)
+- **Alexa**:模拟买家向 AI 购物助手提问,判断 listing 能否被回答(AEO 买家问答,10 类目问句库;substring 词匹配兜底)
 - **标题词组分诊**:把标题拆成语义词组,按词性 + 合规信号给去向建议(标题必留 / 下移亮点 / 下移五点 / 删除违规),告诉你每个词该去哪——诊断不是改写
 
 ## 📁 结构
@@ -127,18 +127,20 @@ data_coverage.unlock_dimensions: [补 item_highlights → 解锁 A9 高亮强度
 ```
 amazon-listing-doctor/
 ├── SKILL.md                  # 质检路由(工作流 + 原则)
-├── scripts/                  # 12 个纯标准库 Python 脚本
+├── scripts/                  # 13 个纯标准库 Python 脚本
 │   ├── compliance_report.py  # 汇总器(核心入口,含 data_coverage 降级板块)
 │   ├── cdq_score.py          # CDQ 6 维评分
 │   ├── cosmo_check.py        # COSMO 意图覆盖(本项目独占)
 │   ├── title_triage.py       # 标题词组分诊(去向建议)
 │   ├── indexability.py       # A9 收录
-│   ├── alexa_check.py        # Alexa 可发现性
+│   ├── alexa_check.py        # Alexa 可发现性(AEO 买家问答)
+│   ├── alexa_question_gen.py # ALEXA AEO 买家问题池
 │   ├── image_check.py        # 图片缺陷
 │   ├── lint_title/highlights/bullets/backend.py  # 合规校验
 │   └── check_keyword_layering.py
 ├── references/               # 规则与词库(公开版)
-│   ├── cosmo_ontology.json   # COSMO 概念本体(4 维)
+│   ├── cosmo_ontology.json   # COSMO 概念本体(4 维 + 10 类目分词)
+│   ├── alexa_question_bank.json # ALEXA AEO 买家问题库(10 类目)
 │   ├── cdq_weights.json      # CDQ 权重
 │   ├── rules.json            # 合规硬规则(含 de/fr/it/es 多语言黑名单)
 │   └── ...
@@ -146,6 +148,18 @@ amazon-listing-doctor/
     ├── output-template.json
     └── report-template.md
 ```
+
+## 📈 更新日志
+
+**v0.4.0 — ALEXA 维度重构(AEO 买家问答)**
+- ALEXA 从 substring 词匹配升级为 **AEO(Answer Engine Optimization)**:模拟真实买家向 AI 购物助手提问,判断 listing 能否被回答/推荐(buyer_alignment 三态:covered / partial / missing)
+- COSMO 吸收 ALEXA 词库(scene/audience/limitation → use_case/audience/constraint),统一走 agent 语义;两维度从重叠变互补:**COSMO 看内容写全没,ALEXA 看能不能接住买家的问**
+- 新增 `alexa_question_bank.json`(10 类目 × 24 真实买家问句)+ `alexa_question_gen.py`
+- 零依赖不破:无 `_alexa_aeo_result` 时自动回退 substring 词匹配
+
+**v0.3.0 — COSMO Agent 语义提取**(固定词库 → Agent 语义理解)
+
+**v0.2.0 — 数据分层 + 多语言修复 + 评分降级**
 
 ## 📜 License
 

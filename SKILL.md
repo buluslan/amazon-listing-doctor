@@ -10,7 +10,7 @@ allowed-tools:
   - Edit
 metadata:
   category: ecommerce/amazon
-  version: 0.3.0
+  version: 0.4.0
   markets: [US, UK, DE, FR, IT, ES, JP, CA, AU]
 ---
 
@@ -27,7 +27,7 @@ metadata:
 | **CDQ** | 内容质量分（主总分） | 0-100 + 档位 | 亚马逊内部 6 维 ASIN 质量评分（属性30%/标题25%/变体20%/图片15%/五点5%/A+5%） |
 | **A9** | 收录健康度 | 0-100 | 被 A9 搜索引擎有效收录的能力（核心词前置/backend 卫生/属性完整/有效索引词） |
 | **COSMO** | 意图覆盖度 | 0-100 + 覆盖率% | 用户意图/常识概念覆盖（use_case/audience/goal/constraint 四维），基于公开论文精神，**非官方分** |
-| **Alexa** | Alexa 可发现性 | 0-100 | AI 购物助手（Alexa for Shopping）能否理解并推荐（场景/人群/限制词覆盖） |
+| **Alexa** | Alexa 可发现性（AEO） | 0-100 | AI 购物助手（Alexa for Shopping / Rufus）问答命中率：模拟买家提问看 listing 能否被回答/推荐 |
 | + 合规 | 合规体检 | PASS/FAIL/WARN | 2026-07-27 新规硬规则（标题75字符、亮点125字符、五点、backend、图片） |
 
 > 主总分用 **CDQ**（有官方权重背书）；A9/COSMO/Alexa 是并列诊断维度，**不强行聚合成"四维总分"**（无官方聚合权重，会误导）。
@@ -96,6 +96,34 @@ metadata:
 ```
 4. **Agent 不可用时自动回退**：如果未写 `_cosmo_extracted`，`cosmo_check.py` 自动走 substring 匹配（零依赖可用）
 
+#### 2.0b ALEXA AEO 提取（Agent 前置步骤，与 COSMO 并列）
+
+ALEXA 维度跟 COSMO 本质差异化：**COSMO 判断 listing 表达了哪些意图概念（静态内容完整性）；ALEXA 模拟真实买家向 AI 购物助手提问，判断 listing 能不能被回答/推荐（动态可发现性）**。两个前置步骤可由 Agent 一次性完成——读一遍 listing，先做 COSMO 概念提取，再做 ALEXA 买家问题回答判断。
+
+1. 调 `alexa_check.get_agent_prompt(data)`，拿到 listing 全文 + 该类目买家问题池（来自 `references/alexa_question_bank.json`，10 类目 × 24 问真实买家口吻）+ 输出 schema
+2. Agent 模拟"AI 购物助手（Alexa for Shopping / Rufus）读到这条 listing 后，能否回答每个买家问题"，对每个问题判断三态：
+   - `covered`：listing 完全能回答（含明确可查信息）
+   - `partial`：listing 提及但信息不全/不清晰
+   - `missing`：listing 完全没回答
+   - **严格口径**："compatible with iPhone 15" 能回答 "Does this work with iPhone?"，但泛泛参数表不能回答 "Is this good for running?"（除非 listing 明确把产品跟跑步关联）。不确定的不算 covered
+3. 将结果写入 listing JSON 的 `_alexa_aeo_result` 字段，格式：
+```json
+{
+  "_alexa_aeo_result": {
+    "extraction_method": "aeo_agent",
+    "buyer_alignment": {
+      "covered": ["Are these waterproof?", "How long does the battery last?"],
+      "partial": ["Is this easy to pair?"],
+      "missing": ["Is this good for kids?", "Are these comfortable for small ears?"]
+    }
+  }
+}
+```
+4. `alexa_check.py` 算分：`score = (covered×1.0 + partial×0.5) / 总问题数 × 100`，输出 `top_missing_questions`（卖家最该补的回答）
+5. **Agent 不可用时自动回退**：如果未写 `_alexa_aeo_result`，`alexa_check.py` 自动走 substring 词匹配（场景/人群/限制词覆盖，零依赖兜底）
+
+> 💡 **COSMO vs ALEXA 分工**：同一 listing，COSMO 可能 100 分（概念写全了），ALEXA 可能只有 58 分（买家问题一半答不上）——这正是两者差异化的价值：COSMO 看你"写没写全"，ALEXA 看你"能不能接住买家的问"。
+
 #### 2.1 跑全量脚本
 
 ```bash
@@ -106,6 +134,7 @@ python scripts/compliance_report.py --file listing.json
 
 - **图片缺陷**：需 listing 含 `images` 字段（每张含 width/height/has_watermark/is_white_background/is_square）——由具备视觉能力的 LLM 分析用户贴图后填入，或用户从 Seller Central 后台导出图片组 JSON 自填。无图自动跳过。
 - **COSMO**：Agent 语义提取 listing 中的意图概念（基于 `extraction_guidance` 四维定义），脚本基于提取结果算达标线分 + 精确覆盖率。Agent 不可用时自动降级 substring 匹配保持可用。`goal` 维度故意偏难——listing 常堆属性词而不写"用户目标"，goal 覆盖率低正是诊断价值（指出 listing 缺意图层表达）。
+- **ALEXA（AEO）**：Agent 模拟买家向 AI 购物助手提问，判断 listing 能否被回答（三态 covered/partial/missing），算 buyer_alignment 分。Agent 不可用时降级 substring 场景/人群/限制词匹配。与 COSMO 差异化：COSMO 看概念写全没，ALEXA 看能不能接住买家的问。
 - **标题词组分诊**：把标题拆成语义词组（按标点 + 介词边界），按词性 + 合规信号给每个词组去向建议（标题必留 / 下移亮点 / 下移五点 / 删除违规），confidence=low 的词组留人工复核。只给去向不给改写。
 
 #### 2.1 评分降级
@@ -150,7 +179,7 @@ python scripts/compliance_report.py --file listing.json
 ```
 （LLM 按此 schema 归一化；缺的字段可留空，对应检查自动跳过 + 评分优雅降级。`attributes_top10_expected`/`band_a_critical_6` 不传时查 `references/category_attributes/<category>.json` 兜底，也可用户自填覆盖。`meta.unfetched_backend` 列出哪些真正后台字段仍待补。）
 
-## 脚本清单（12 个，纯标准库）
+## 脚本清单（13 个，纯标准库）
 
 | 脚本 | 作用 | 退出码 |
 |------|------|--------|
@@ -162,7 +191,8 @@ python scripts/compliance_report.py --file listing.json
 | cdq_score.py | CDQ 6 维评分（自动读图片真实缺陷 + 注入标题合规状态） | 0 |
 | indexability.py | A9 收录健康度 | 0 |
 | **cosmo_check.py** | **COSMO 意图覆盖度（Agent 语义提取优先 / substring 匹配回退）** | 0 |
-| alexa_check.py | Alexa 可发现性（10 类目分词库 + 通用词库） | 0 |
+| alexa_check.py | Alexa 可发现性（AEO 买家问答优先 / substring 词匹配兜底） | 0 |
+| alexa_question_gen.py | ALEXA AEO 买家问题池（10 类目问句库 + lexicon 种子扩写） | 0 |
 | **title_triage.py** | **标题词组分诊（词组→去向建议：必留/下移/删除）** | 0 |
 | check_keyword_layering.py | 关键词四层去重 + 加权索引分 | 0 |
 | compliance_report.py | **汇总全部 → 完整报告（含 data_coverage 降级说明）** | 0/1 |
@@ -177,6 +207,7 @@ python scripts/compliance_report.py --file listing.json
 | `category_attributes/<category>.json` | 查类目 top10 必填属性（公开版；用户可自填覆盖） |
 | `new-rules-2026.md` | 用户问"为什么"时 |
 | `sites-overrides.md` | 非 US 站 |
+| `alexa_question_bank.json` | ALEXA AEO 模式：Agent 取该类目买家问题池（`alexa_check.get_agent_prompt` 自动读） |
 | `rules.json`/`cdq_weights.json`/`indexability_rules.json`/`alexa_lexicon.json`/`image_rules.json` | 脚本自动读 |
 
 ## 重要原则

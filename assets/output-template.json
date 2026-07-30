@@ -109,14 +109,25 @@
     "risks": []
   },
   "alexa_discoverability": {
+    "_comment": "AEO 双模式。AEO 模式输出 buyer_alignment 三态；无 _alexa_aeo_result 时降级为 substring 词匹配，输出 scene_coverage/audience_coverage/limit_coverage/missing_* 字段。",
     "score": 0,
-    "scene_coverage": [],
-    "audience_coverage": [],
-    "limit_coverage": [],
-    "missing_scene": [],
-    "missing_audience": [],
-    "missing_limit": [],
-    "suggestions": []
+    "_extraction_method": "aeo_agent",
+    "buyer_alignment": {
+      "covered": [],
+      "partial": [],
+      "missing": []
+    },
+    "total_questions": 0,
+    "covered_count": 0,
+    "partial_count": 0,
+    "missing_count": 0,
+    "top_missing_questions": [],
+    "suggestions": [],
+    "category": null,
+    "lexicon_source": "",
+    "used_fallback": false,
+    "input_available": true,
+    "input_unavailable_reason": null
   },
   "cosmo_report": {
     "score": 0,

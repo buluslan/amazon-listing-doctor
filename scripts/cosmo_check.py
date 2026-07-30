@@ -75,26 +75,33 @@ def _load_ontology():
 
 
 def _get_category_ontology(ontology, category):
-    """按 category 取本体; category 优先, 缺失维度回退 _common。
+    """按 category 取本体; 类目词 + _common 词合并去重 (类目分词 + 通用词叠加, 覆盖更全)。
 
     返回 (merged_dict, used_fallback_flag)。
     merged_dict keys: use_case / audience / goal / constraint。
+    used_fallback=True 表示无该类目分词块, 纯靠 _common。
+    合并去重保证: 吸收更多词后, 同一 listing 的命中数只会持平或上升, score 不下降。
     """
     common = ontology.get("_common", {}) if isinstance(ontology.get("_common"), dict) else {}
-    cat_entry = ontology.get(category, {}) if isinstance(ontology.get(category), dict) else {}
+    cat_entry = (
+        ontology.get(category, {})
+        if category and isinstance(ontology.get(category), dict)
+        else {}
+    )
 
     merged = {}
-    fallback_used = False
     for dim in DIMENSIONS:
-        cval = cat_entry.get(dim)
-        bval = common.get(dim)
-        if cval:
-            merged[dim] = list(cval)
-        elif bval:
-            merged[dim] = list(bval)
-            fallback_used = True
-        else:
-            merged[dim] = []
+        cval = list(cat_entry.get(dim) or [])
+        bval = list(common.get(dim) or [])
+        # 类目词在前, _common 兜底, 按小写去重保持原形
+        combined, seen = [], set()
+        for w in cval + bval:
+            key = w.lower()
+            if key not in seen:
+                seen.add(key)
+                combined.append(w)
+        merged[dim] = combined
+    fallback_used = not bool(cat_entry)
     return merged, fallback_used
 
 

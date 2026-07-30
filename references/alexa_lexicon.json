@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "scope": "open-source doctor · full public lexicon (common + 10 categories)",
-    "note": "Per-category lexicons are public category common sense (e.g. 'noise cancelling' for Electronics, 'machine washable' for Apparel, 'bpa free' for Baby) — not proprietary research — so they ship in this open build. alexa_check picks the category-specific list when data.category matches one of the keys below, else falls back to _common.",
+    "scope": "open-source doctor · full public lexicon (common + 10 categories); also the ALEXA AEO scenario/audience seed bank",
+    "note": "Per-category lexicons are public category common sense (e.g. 'noise cancelling' for Electronics, 'machine washable' for Apparel, 'bpa free' for Baby) — not proprietary research — so they ship in this open build. alexa_check picks the category-specific list when data.category matches one of the keys below, else falls back to _common. 本文件供 ALEXA AEO 模块复用为场景/人群种子词, 并作为 substring 兜底词库。",
     "category_specific": true,
     "categories": ["Electronics", "Apparel", "Home_Kitchen", "Beauty_Personal_Care", "Tools_Home_Improvement", "Sports_Outdoors", "Toys_Games", "Grocery_Gourmet", "Pet_Supplies", "Baby"]
   },

@@ -170,20 +170,28 @@
 
 ---
 
-## 四、Alexa 可发现性
+## 四、Alexa 可发现性（AEO 买家问答）
 
-> 评估 Listing 在 AI 购物助手（Alexa for Shopping）场景下的可被发现性。覆盖场景词、人群词、限制词越多，AI 助手越能理解你的产品并推荐给用户。
+> 评估 AI 购物助手（Alexa for Shopping / Rufus）回答买家提问时，能不能从你的 Listing 里找到答案并推荐你。模拟真实买家提问，判断 Listing 能回答多少个问题——能回答的越多、越完整，AI 助手越会把你推给买家（Answer Engine Optimization）。
+> ALEXA 与 COSMO 本质差异化——COSMO（概念覆盖）看你内容写全没，ALEXA（买家问答）看你能不能接住买家的问。
 
-**可发现性**: **`{{alexa_discoverability.score}}` / 100**（来源：`{{alexa_discoverability.lexicon_source}}`）
+**可发现性**: **`{{alexa_discoverability.score}}` / 100** · 方式：`{{alexa_discoverability._extraction_method}}`（来源：`{{alexa_discoverability.lexicon_source}}`）
 
-| 维度 | 已覆盖 | 缺失 |
+| 回答三态 | 数量 | 问题示例 |
 |---|---|---|
-| 场景（Scene） | `{{alexa_discoverability.scene_coverage}}` | `{{alexa_discoverability.missing_scene}}` |
-| 人群（Audience） | `{{alexa_discoverability.audience_coverage}}` | `{{alexa_discoverability.missing_audience}}` |
-| 限制（Limitation） | `{{alexa_discoverability.limit_coverage}}` | `{{alexa_discoverability.missing_limit}}` |
+| ✅ 完全可答（covered） | `{{alexa_discoverability.covered_count}}` | `{{alexa_discoverability.buyer_alignment.covered}}` |
+| 🟡 部分可答（partial） | `{{alexa_discoverability.partial_count}}` | `{{alexa_discoverability.buyer_alignment.partial}}` |
+| ❌ 未回答（missing） | `{{alexa_discoverability.missing_count}}` | `{{alexa_discoverability.buyer_alignment.missing}}` |
+
+> 共模拟 `{{alexa_discoverability.total_questions}}` 个买家问题。score = (covered×1.0 + partial×0.5) / 总问题数 × 100。
+
+**卖家最该补的回答（Top Missing）**:
+{{alexa_discoverability.top_missing_questions}}
 
 **补充建议**:
 {{alexa_discoverability.suggestions}}
+
+> ℹ️ 当未提供 `_alexa_aeo_result`（Agent 未做 AEO 判断）时，本维度自动降级为 substring 词匹配，输出 `scene_coverage` / `audience_coverage` / `limit_coverage` / `missing_*` 字段而非 `buyer_alignment`，用于零依赖兜底。
 
 ---
 

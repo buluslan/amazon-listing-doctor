@@ -1,6 +1,6 @@
 {
   "skill_name": "amazon-listing-doctor",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "notes": "验收基线：每个 eval 的 listing.json 喂给 scripts/compliance_report.py，须 overall_compliant=true 且 CDQ>=Good；反例须被脚本抓到对应 FAIL。",
   "evals": [
     {
@@ -100,6 +100,49 @@
         {"name": "backend_unfetched_listed", "check": "返回结果 meta.unfetched_backend 包含 item_highlights + backend_search_terms + attributes_filled"},
         {"name": "front_field_filled_when_available", "check": "成功返回时 title/brand/bullets/images 不为空"},
         {"name": "fetch_exit_codes", "check": "CLI 模式：缺 key 退出码 1；JSON 解析失败 退出码 1；正常 退出码 0"}
+      ],
+      "files": []
+    },
+    {
+      "id": 8,
+      "name": "aeo-mode-buyer-question-coverage",
+      "mode": "strict_75",
+      "prompt": "用户贴了带 _alexa_aeo_result 字段的 listing（Agent 已对 Electronics 24 个买家问题做了 covered/partial/missing 三态判断）。验证 ALEXA AEO 模式正确算 buyer_alignment 分、输出 top_missing_questions，并与 COSMO 概念覆盖本质差异化。",
+      "expected_output": "alexa_discoverability._extraction_method=aeo_agent；score=round((covered×1.0+partial×0.5)/total×100)；buyer_alignment 含 covered/partial/missing 三态；top_missing_questions 是 missing 前 5 个；action_items 里 alexa 来源是'补买家问题回答'而非'补场景词'。",
+      "assertions": [
+        {"name": "aeo_method", "check": "alexa_discoverability._extraction_method=aeo_agent"},
+        {"name": "aeo_score_formula", "check": "score = round((covered_count*1.0 + partial_count*0.5)/total_questions*100)"},
+        {"name": "buyer_alignment_three_buckets", "check": "buyer_alignment 含 covered/partial/missing 三个 key"},
+        {"name": "top_missing_emitted", "check": "top_missing_questions 是 missing 列表的前 5 个"},
+        {"name": "differentiated_from_cosmo", "check": "同一 listing COSMO 报概念覆盖（covered_concepts/missing_concepts）、ALEXA 报问题回答（buyer_alignment），两者字段结构不重叠"}
+      ],
+      "files": []
+    },
+    {
+      "id": 9,
+      "name": "alexa-substring-fallback",
+      "mode": "strict_75",
+      "prompt": "用户贴了 Electronics listing 但没有 _alexa_aeo_result 字段（未跑 Agent AEO 提取）。验证 ALEXA 自动回退 substring 词匹配，输出 scene_coverage/audience_coverage/limit_coverage 向后兼容字段，零依赖可用。",
+      "expected_output": "alexa_discoverability._extraction_method=substring；score 按 scene/audience/limitation 达标线加权；输出 scene_coverage/audience_coverage/limit_coverage/missing_* 字段；无 buyer_alignment。",
+      "assertions": [
+        {"name": "substring_method", "check": "无 _alexa_aeo_result 时 _extraction_method=substring"},
+        {"name": "legacy_fields_present", "check": "输出含 scene_coverage/audience_coverage/limit_coverage/missing_scene 字段"},
+        {"name": "category_lexicon_hit", "check": "Electronics listing 命中类目分词（noise cancelling/wireless 等），lexicon_source=Electronics"},
+        {"name": "no_buyer_alignment", "check": "substring 模式不输出 buyer_alignment 字段"}
+      ],
+      "files": []
+    },
+    {
+      "id": 10,
+      "name": "cosmo-absorbed-lexicon-no-regression",
+      "mode": "strict_75",
+      "prompt": "COSMO 吸收 ALEXA 10 类目词库后，验证 substring fallback 模式下 Electronics 类目命中 use_case/constraint（类目词+_common 合并去重），goal 维度未被破坏（_common.goal 兜底），score 不下降。",
+      "expected_output": "cosmo_report._extraction_method=substring；Electronics use_case 命中含类目词（commute/gaming/travel）+_common 词（running/workout）；constraint 命中类目词（noise cancelling/long battery/wireless）；ontology_source=Electronics；goal 维度 total>0（_common.goal 兜底未破坏）。",
+      "assertions": [
+        {"name": "category_words_merged", "check": "Electronics substring 模式 use_case+constraint 命中含类目分词"},
+        {"name": "goal_dim_intact", "check": "goal 维度 per_dimension.total > 0（_common.goal 兜底未破坏）"},
+        {"name": "no_score_regression", "check": "吸收词库后 cosmo score 不下降（达标线公式，命中数持平或上升）"},
+        {"name": "deduped", "check": "合并后各类目 use_case 列表无重复词"}
       ],
       "files": []
     }
