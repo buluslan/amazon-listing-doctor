@@ -10,7 +10,7 @@ allowed-tools:
   - Edit
 metadata:
   category: ecommerce/amazon
-  version: 0.4.3
+  version: 0.4.4
   markets: [US, UK, DE, FR, IT, ES, JP, CA, AU]
 ---
 
@@ -47,7 +47,7 @@ metadata:
 归一化 listing JSON → 审计
 ```
 
-> ⭐ **数据获取建议**：亚马逊反爬激进，优先用专业工具取数再粘贴，反爬能力强且不碰账号风控。本 skill 专注最擅长的——归一化 + 体检 + 打分。**不内置浏览器自动化**（违背零依赖自包含原则）。URL/ASIN 抓不全很正常，拿到什么审什么，缺图片/评论请用户补，**绝不因抓不全而整个流程报废**。
+> ⭐ **数据获取**：亚马逊反爬激进，优先专业工具取数后粘贴。本 skill 零依赖、不内置抓取——URL/ASIN 抓不全很正常，拿到什么审什么，缺字段请用户补，**绝不因抓不全而报废流程**。
 
 #### 1.1 数据分层（前台 vs 后台）
 
@@ -74,27 +74,8 @@ metadata:
    - `missing_concepts`：该品类下重要但 listing 遗漏的意图概念
    - **语义理解优先**：不要求概念词精确出现在原文——"keeps cat fed while at work" 表达了 work 场景，"perfect for morning jog" 表达了跑步场景
    - **不编造**：缺失清单只写真正跟这个产品相关的意图，不确定的不写
-3. 将结果写入 listing JSON 的 `_cosmo_extracted` 字段，格式：
-```json
-{
-  "_cosmo_extracted": {
-    "extraction_method": "agent_semantic",
-    "covered_concepts": {
-      "use_case": ["home feeding", "office use"],
-      "audience": ["multi-pet owners", "busy professionals"],
-      "goal": ["consistent schedule", "peace of mind when away"],
-      "constraint": ["dual power backup", "BPA-free materials"]
-    },
-    "missing_concepts": {
-      "use_case": ["travel with pets"],
-      "audience": ["senior pet owners"],
-      "goal": ["weight management", "reduce pet anxiety"],
-      "constraint": ["quiet operation"]
-    }
-  }
-}
-```
-4. **Agent 不可用时自动回退**：如果未写 `_cosmo_extracted`，`cosmo_check.py` 自动走 substring 匹配（零依赖可用）
+3. 将结果写入 listing JSON 的 `_cosmo_extracted` 字段：`extraction_method`(agent_semantic) + `covered_concepts` + `missing_concepts`，后两者按 use_case/audience/goal/constraint 四维组织，值用自然语言短语（不限于词表词）。
+4. **Agent 不可用时自动回退**：未写 `_cosmo_extracted` 则 `cosmo_check.py` 走 substring 匹配（零依赖可用）。
 
 #### 2.0b ALEXA AEO 提取（Agent 前置步骤，与 COSMO 并列）
 
@@ -108,23 +89,9 @@ ALEXA 维度跟 COSMO 本质差异化：**COSMO 判断 listing 表达了哪些�
      - `partial`：listing 提及但信息不全/不清晰
      - `missing`：listing 完全没回答
    - **严格口径**："compatible with iPhone 15" 能回答 "Does this work with iPhone?"，但泛泛参数表不能回答 "Is this good for running?"（除非 listing 明确把产品跟跑步关联）。不确定的不算 covered
-3. 将结果写入 listing JSON 的 `_alexa_aeo_result` 字段，格式（`buyer_questions` 会展示在报告里，卖家能看到 Agent 生成了哪些问题）：
-```json
-{
-  "_alexa_aeo_result": {
-    "extraction_method": "aeo_agent",
-    "product": "蓝牙降噪耳机，主打通勤/运动，买家多为年轻数码用户",
-    "buyer_questions": ["Are these good for running?", "Does this work with iPhone?", "...共 14-18 问"],
-    "buyer_alignment": {
-      "covered": ["Are these waterproof?", "How long does the battery last?"],
-      "partial": ["Is this easy to pair?"],
-      "missing": ["Is this good for kids?", "Are these comfortable for small ears?"]
-    }
-  }
-}
-```
-4. `alexa_check.py` 算分：`score = (covered×1.0 + partial×0.5) / 总问题数 × 100`，输出 `top_missing_questions`（卖家最该补的回答）
-5. **Agent 不可用时自动回退**：如果未写 `_alexa_aeo_result`，`alexa_check.py` 自动走 substring 词匹配（场景/人群/限制词覆盖，零依赖兜底）
+3. 将结果写入 listing JSON 的 `_alexa_aeo_result` 字段：`extraction_method`(aeo_agent) + `product`(产品理解) + `buyer_questions`(生成的 14-18 问，报告可见) + `buyer_alignment`(covered/partial/missing 三态)。
+4. `alexa_check.py` 算分：`score = (covered×1.0 + partial×0.5) / 总问题数 × 100`，输出 `top_missing_questions`（卖家最该补的回答）。
+5. **Agent 不可用时自动回退**：未写 `_alexa_aeo_result` 则走 substring 词匹配（场景/人群/限制词覆盖，零依赖兜底）。
 
 > 💡 **COSMO vs ALEXA 分工**：同一 listing，COSMO 可能 100 分（概念写全了），ALEXA 可能只有 58 分（买家问题一半答不上）——这正是两者差异化的价值：COSMO 看你"写没写全"，ALEXA 看你"能不能接住买家的问"。
 
@@ -137,11 +104,9 @@ python scripts/compliance_report.py --file listing.json
 一次跑出全部维度：合规体检 + CDQ 评分 + A9 收录 + COSMO 意图覆盖 + Alexa 可发现性 + 图片缺陷 + 关键词分层覆盖。退出码 0=总体合规 / 1=有 FAIL。
 
 - **图片缺陷**：需 listing 含 `images` 字段（每张含 width/height/has_watermark/is_white_background/is_square）——由具备视觉能力的 LLM 分析用户贴图后填入，或用户从 Seller Central 后台导出图片组 JSON 自填。无图自动跳过。
-- **COSMO**：Agent 语义提取 listing 中的意图概念（基于 `extraction_guidance` 四维定义），脚本基于提取结果算达标线分 + 精确覆盖率。Agent 不可用时自动降级 substring 匹配保持可用。`goal` 维度故意偏难——listing 常堆属性词而不写"用户目标"，goal 覆盖率低正是诊断价值（指出 listing 缺意图层表达）。
-- **ALEXA（AEO）**：Agent 模拟买家向 AI 购物助手提问，判断 listing 能否被回答（三态 covered/partial/missing），算 buyer_alignment 分。Agent 不可用时降级 substring 场景/人群/限制词匹配。与 COSMO 差异化：COSMO 看概念写全没，ALEXA 看能不能接住买家的问。
 - **标题词组分诊**：把标题拆成语义词组（按标点 + 介词边界），按词性 + 合规信号给每个词组去向建议（标题必留 / 下移亮点 / 下移五点 / 删除违规），confidence=low 的词组留人工复核。只给去向不给改写。
 
-#### 2.1 评分降级
+#### 2.2 评分降级
 
 **原则**：缺关键字段时**显式标 score=null + reason**，不强行给 0 或 100，让用户一眼看出"这个分数是因为数据不足，不是真差"。
 
@@ -217,18 +182,9 @@ python scripts/compliance_report.py --file listing.json
 ## 重要原则
 
 - **合规校验全脚本化**：绝不靠"请避免重复词"这类措辞约束 LLM，必须跑脚本（LLM 会跳过文字约束）
-- **零依赖自包含**：不绑任何特定外部 skill。输入靠用户提供（粘贴/导出为主），图片靠视觉 LLM 分析；联网抓取只是可选增强且不写死工具名。用"陌生用户 clone 下来就能跑"检验设计
-- **数据分层**：前台数据靠第三方 API 拉取或用户粘贴，后台数据必须 Seller Central 导出；缺字段优雅降级，不阻塞流程
-- **多语言虚词豁免**：bullets 关键词堆砌按 `language` 字段取虚词表；德语 listing 不再因 mit/für/durch/aus 等介词被误判堆砌。promo/subjective 黑名单覆盖 de/fr/it/es
-- **COSMO 诚实标注**：COSMO 无官方质检权重，本 skill 的 COSMO 维度是基于公开论文（WWW 2024）精神的社区概念覆盖诊断，**不是官方 COSMO 分**。报告里如实标注
-- **媒体类目豁免**：Books/Music/DVD/Video 不受 75 字符限制，脚本按 category 自动识别
-- **不与关键词数据库竞争**：关键词由用户自带或竞品 ASIN 抽取
+- **零依赖自包含**：不绑外部 skill，输入靠用户提供（粘贴/导出），联网抓取只是可选增强且不写死工具名——"陌生用户 clone 下来就能跑"
+- **COSMO 诚实标注**：COSMO 维度基于公开论文（WWW 2024）精神的社区诊断，**非官方 COSMO 分**，报告如实标注
 
 ## 用户语言规范（防对话泄漏）
 
-清理文件还不够——对话里仍可能说"我跑了 lint_title.py / compliance_report"。对用户开口用大白话：
-
-- **对话即定**：对话发出即定，无法事后 grep 改，开口就用用户语言
-- **内部词翻译**：脚本名（`lint_title` / `compliance_report` / `cdq_score` / `cosmo_check`）→ "合规校验 / 体检 / 质量评分 / 意图覆盖检查"；JSON 字段 → 业务说法
-- **对内/对外分离**：脚本名、文件名、JSON 字段是对内执行必需；流向用户（对话 + 产出报告）必须翻译成"做了系统校验 / 质量评分 / 意图覆盖诊断"
-- **开口就不说内部词**：用户问"你怎么做的"，答"我对你的 listing 做了合规体检 + 质量评分 + 意图覆盖诊断"，不答"我跑了 11 个脚本"
+对用户开口用大白话，不主动说脚本名/字段名——`lint_title`→"标题合规校验"、`compliance_report`→"体检"、JSON 字段→业务说法。对话即定无法事后改，开口就用用户语言。
