@@ -10,7 +10,7 @@ allowed-tools:
   - Edit
 metadata:
   category: ecommerce/amazon
-  version: 0.4.3
+  version: 0.4.2
   markets: [US, UK, DE, FR, IT, ES, JP, CA, AU]
 ---
 
@@ -40,13 +40,14 @@ metadata:
 
 ```
 用户给的数据
-├─ 纯文本 / 后台导出表格？  → 直接解析归一化（零依赖，最可靠）
-└─ 网页链接 / ASIN？       → 首选 web-access skill 的 CDP 抓详情页（见 §1.2）；不可用回退粘贴/sellersprite MCP
+├─ 纯文本 / 后台导出表格？  → 直接解析归一化（首选，零依赖，最可靠）
+├─ 网页链接（amazon 官方域名）？ → 用环境可用的抓取能力尝试；抓不全请用户补
+└─ ASIN（B0 开头 10 位）？    → 用可用的第三方 API 拉取，或配 market 构造 URL 抓取
         ↓ 汇总
 归一化 listing JSON → 审计
 ```
 
-> ⭐ **数据获取建议**：亚马逊反爬激进。本 skill 自身保持零依赖（不内置 CDP/浏览器自动化代码），但**优先支持调用 web-access skill 的 CDP 路径**抓取（见 §1.2）——CDP 在 web-access 那边，doctor 只做归一化 + 体检 + 打分。URL/ASIN 抓不全很正常，拿到什么审什么，缺图片/评论请用户补，**绝不因抓不全而整个流程报废**。
+> ⭐ **数据获取建议**：亚马逊反爬激进，优先用专业工具取数再粘贴，反爬能力强且不碰账号风控。本 skill 专注最擅长的——归一化 + 体检 + 打分。**不内置浏览器自动化**（违背零依赖自包含原则）。URL/ASIN 抓不全很正常，拿到什么审什么，缺图片/评论请用户补，**绝不因抓不全而整个流程报废**。
 
 #### 1.1 数据分层（前台 vs 后台）
 
@@ -60,22 +61,6 @@ metadata:
 **为什么这样切**：前台数据 = 亚马逊详情页对买家可见的字段，第三方工具理论上都能抓；后台数据 = 仅 Seller Central 后台可编辑的字段（`backend_search_terms` 是隐藏索引字段；`item_highlights` 是 2026 新增字段——**卖家精灵 `asin_detail` 实测无此字段，且返回的 `title` 仍是旧版长标题**，需手动按 75 字符拆分或 Seller Central 导出）。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。
 
 归一化是 LLM 的活（输入格式千变万化），脚本只处理 JSON（确定）。缺的字段留空，对应检查自动跳过。
-
-#### 1.2 CDP 数据获取（推荐 · 环境有 web-access skill 时）
-
-用户给 URL/ASIN 时，**首选派 web-access skill 抓亚马逊详情页**（CDP 直连用户 Chrome、带登录态、绕反爬，比静态抓取可靠得多）。doctor 自身零依赖不含 CDP——抓取由 web-access 做，doctor 只做归一化 + 质检。
-
-**做法**：派 `subagent_type: web-access` 子代理（或加载 web-access skill 遵循其指引），目标导向地要数据：
-
-> 获取亚马逊 <ASIN/URL> 详情页数据用于 Listing 质检。需要：标题 + 商品亮点（⚠️ 亚马逊把两者用竖线 `|` 拼在 `#productTitle` 同一行，抓到后**按首个 ` | ` 拆成 title 和 item_highlights 两个字段**）、五点描述（`#feature-bullets`）、图片（主图 + 副图 URL）、品牌（`#bylineInfo`）、类目与属性（`#productOverview_feature_div`）、是否有 A+（`#aplus` 存在即 true）。
-
-web-access 会用 CDP 打开详情页（按 market 换域名：UK→`.co.uk` / DE→`.de` / JP→`.co.jp` / FR→`.fr`）提取，返回结构化数据，doctor 归一化为 listing JSON。
-
-**后台字段**（`backend_search_terms` / `attributes_top10_expected` / `band_a_critical_6`）CDP 也抓不到（仅 Seller Central 后台可见），留空请用户补。
-
-**web-access 不可用**（未装 / 9222 没起 / `setup-cdp.sh` 未跑）→ 回退：用户粘贴文本 / 后台导出 / sellersprite MCP，核心质检照跑。
-
-> 💡 这条路径解决"用户卡在获取数据"——给 URL/ASIN 就能自动抓详情页，不用手动粘贴或备 sellersprite key。且抓到的拼接标题会被 `lint_highlights` 自动按 `|` 拆开质检（v0.4.2 修复的能力）。抓取成功后，鼓励把亚马逊 DOM 经验写入 web-access 的 `references/site-patterns/amazon.com.md`（其站点经验机制，方便下次）。
 
 ### 2. 全量审计
 

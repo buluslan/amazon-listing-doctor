@@ -13,7 +13,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-0.4.3-black.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.2-black.svg)]()
 [![中文](https://img.shields.io/badge/lang-中文-red.svg)](README.md)
 
 **CDQ Quality Score · A9 Indexability · COSMO Intent Coverage · Alexa Discoverability · Compliance · Title Triage**
