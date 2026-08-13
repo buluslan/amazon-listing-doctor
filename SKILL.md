@@ -10,7 +10,7 @@ allowed-tools:
   - Edit
 metadata:
   category: ecommerce/amazon
-  version: 0.4.2
+  version: 0.4.3
   markets: [US, UK, DE, FR, IT, ES, JP, CA, AU]
 ---
 
@@ -55,10 +55,10 @@ metadata:
 
 | 分层 | 字段 | 来源 |
 |------|------|------|
-| **前台（详情页可见）** | `title` / `bullets` / `description` / `images` / `brand` / `category` / `market` / `language` / `has_a_plus` / `attributes_filled` / `attributes_top10_expected` | 第三方 API / SP-API 均可取 |
-| **后台（详情页不可见）** | `item_highlights` / `backend_search_terms` / `band_a_critical_6` / `is_parent` / `is_variation` / 父子体属性映射 | **必须从 Seller Central 后台导出**，外部 API 取不到 |
+| **前台（详情页可见）** | `title` / `item_highlights` / `bullets` / `description` / `images` / `brand` / `category` / `market` / `language` / `has_a_plus` / `attributes_filled` / `attributes_top10_expected` | 第三方 API / SP-API 均可取；⚠️ `item_highlights` 例外：与 title 在标题区竖线拼接同行显示（前台可见），但卖家精灵取不到，需 Seller Central 导出或从拼接 title 按 `\|` 手动拆 |
+| **后台（详情页不可见）** | `backend_search_terms` / `band_a_critical_6` / `is_parent` / `is_variation` / 父子体属性映射 | **必须从 Seller Central 后台导出**，外部 API 取不到 |
 
-**为什么这样切**：前台数据 = 亚马逊详情页对买家可见的字段，第三方工具理论上都能抓；后台数据 = 仅 Seller Central 后台可编辑的字段（`backend_search_terms` 是隐藏索引字段；`item_highlights` 是 2026 新增字段——**卖家精灵 `asin_detail` 实测无此字段，且返回的 `title` 仍是旧版长标题**，需手动按 75 字符拆分或 Seller Central 导出）。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。
+**为什么这样切**：前台数据 = 亚马逊详情页对买家可见的字段；后台数据 = 仅 Seller Central 后台可编辑、详情页不可见的字段（`backend_search_terms` 是隐藏索引字段）。⚠️ `item_highlights` 特殊：它与 title 在标题区**竖线拼接同行显示**（前台可见，亚马逊官方确认），故归前台；但卖家在 Seller Central 编辑、卖家精灵取不到（返回的 title 是旧版长拼接串），需 Seller Central 导出或从拼接 title 按 `|` 手动拆。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。
 
 归一化是 LLM 的活（输入格式千变万化），脚本只处理 JSON（确定）。缺的字段留空，对应检查自动跳过。
 
