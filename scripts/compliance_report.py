@@ -11,11 +11,12 @@
 # 退出码：0=总体合规 / 1=有 FAIL
 #
 # 数据分层：
-#   - 前台（详情页可见）: title / bullets / description / images / has_a_plus /
+#   - 前台（详情页可见）: title / item_highlights / bullets / description / images / has_a_plus /
 #                         brand / category / market / language / attributes_filled /
 #                         attributes_top10_expected
-#     买家在 Amazon 详情页可直接看到的字段，第三方 API / SP-API 均可取
-#   - 后台（仅 Seller Central）: item_highlights / backend_search_terms / band_a_critical_6 /
+#     买家在 Amazon 详情页可直接看到的字段（item_highlights 与 title 标题区竖线拼接同行显示；
+#     但 item_highlights 卖家精灵取不到，需 Seller Central 导出）
+#   - 后台（仅 Seller Central）: backend_search_terms / band_a_critical_6 /
 #                                 is_parent / is_variation / parent_sku_attrs
 #     详情页不显示，必须从 Seller Central 后台导出
 #   - 评分维度对各字段的最低依赖：
@@ -62,6 +63,7 @@ DIMENSION_REQUIRED_FIELDS = {
 # 原则：详情页可见 = 前台；仅 Seller Central 后台可编辑/查看 = 后台
 FRONTEND_FIELDS = [
     ("title", "商品标题（前台核心）"),
+    ("item_highlights", "商品亮点（≤125字符，标题区竖线拼接可见，但需 Seller Central 导出）"),
     ("bullets", "五点描述（前台详情页，5 条卖点）"),
     ("description", "产品详情 / A+ 描述（前台）"),
     ("images", "图片组（含 width/height/is_white_background 等元数据）"),
@@ -75,7 +77,6 @@ FRONTEND_FIELDS = [
 ]
 
 BACKEND_FIELDS = [
-    ("item_highlights", "商品亮点（≤125 字符，A9 强索引，部分 listing 不填）"),
     ("backend_search_terms", "后台搜索词（≤250 字节，详情页不显示，纯 A9 索引）"),
     ("band_a_critical_6", "Band A 关键 6 项"),
     ("is_parent", "父 ASIN 标记"),
