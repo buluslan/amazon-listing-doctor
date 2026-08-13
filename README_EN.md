@@ -120,29 +120,19 @@ amazon-listing-doctor/
     └── report-template.md
 ```
 
-## 📈 Changelog
+## 🏠 Community
 
-**v0.4.2 — Title & Item Highlights display: principled fix**
+<div align="center">
 
-Fixed a fundamental error where the title and item_highlights were audited as two independent fields. Verified (Aug 2026, Amazon official + live page inspection): they are independent fields in the backend, but **the frontend actually concatenates them into one line with a pipe `|`** at the title position (an Amazon-acknowledged display bug). This release rebuilds highlights auditing around that reality:
-- `lint_highlights.py` rewritten: new **display string** audit layer (concatenated preview + combined char count) + comma-separated phrase format check (official requirement, non-comma → WARN) + no self-embedded separator + cross-field repeated words (WARN, marked TBD — no official cross-field rule) + 125-char utilization
-- `rules.json` highlights: 7 new fields (render_separator / display_concatenated / required_separator etc.) codifying the display reality
-- `new-rules-2026.md` §2 rewritten: three-layer facts + the `|` U+007C vs forbidden `¦` U+00A6 pitfall + comma-phrase format + sellersprite has no highlights field
-- Output/report templates + SKILL.md synced with the display-string section
+🎯 **More AI tutorials and exclusive perks in our "MBG Cross-border AI Circle" — 50+ top cross-border sellers and AI experts already inside.**
 
-**v0.4.1 — ALEXA question generation switched to protocol-driven**
+—— Cross-border e-commerce practitioners welcome. Let's explore the best practices and real boundaries of AI + business together, and go from 0 to 1 with Cross-border AI, outperform your peers.
 
-The v0.4.0 fixed question bank (10 categories × 24) showed real category bias in testing (Electronics read like an earbuds-only sheet). Switched to: **Agent reads a question-generation protocol (8-aspect framework) and generates questions tailored to each specific product on the fly**, removing the bias. New `alexa_question_protocol.md`; `alexa_question_bank.json` removed.
+**Community intro:[mp.weixin.qq.com/s/dOz4fLmRnaFR7sD_TQm00Q](https://mp.weixin.qq.com/s/dOz4fLmRnaFR7sD_TQm00Q)**
 
-**v0.4.0 — ALEXA rebuilt as AEO (buyer Q&A)**
-- ALEXA upgraded from substring word-matching to **AEO (Answer Engine Optimization)**: simulates real buyer questions to an AI shopping assistant, judges whether the listing can be answered/recommended (buyer_alignment 3-state: covered / partial / missing)
-- COSMO absorbed ALEXA's lexicons (scene/audience/limitation → use_case/audience/constraint), unified under agent semantic extraction; the two dimensions go from overlapping to complementary: **COSMO checks whether content is complete, ALEXA checks whether it can answer buyers' questions**
-- New `alexa_question_bank.json` (10 categories × 24 real buyer questions) + `alexa_question_gen.py`
-- Zero-dependency preserved: falls back to substring word-matching when no `_alexa_aeo_result`
+<img width="1125" height="618" alt="image" src="https://github.com/user-attachments/assets/20f47cd6-e33c-4f3e-9362-3846c11135fd" />
 
-**v0.3.0 — COSMO agent semantic extraction**
-
-**v0.2.0 — data layering + multilingual fixes + score degradation**
+</div>
 
 ## 📜 License
 
