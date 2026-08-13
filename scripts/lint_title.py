@@ -136,6 +136,11 @@ def check_char_utilization(title, rules, categories_cfg, market, category, mode)
     策略：核心词前置 50-60（移动端可见）+ 用满 75（A9 索引最大化）。
     媒体类目/ME 站豁免（无 75 限制，不查利用率）。
     这是 WARN 级建议（非硬规），但会进 fix_suggestions 引导补词。
+
+    注（2026-07-27 新规）：标题与 item_highlights 在前端拼成一行，合计
+    75+125=200 字符连续展示空间。但标题 75 仍是 A9 索引主战场（权重最高），
+    用满 75 仍合理；亮点 125 的利用率由 lint_highlights.check_char_utilization
+    负责。本函数只管标题内部预算，不越界管亮点。
     """
     title_rules = rules.get("title", {})
     max_chars = title_rules.get("max_chars", {"strict_75": 75, "transition_200": 200})

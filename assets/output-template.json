@@ -35,7 +35,20 @@
     "checks": {
       "char_limit": {"status": "PASS", "actual": 0, "limit": 125},
       "min_clauses": {"status": "PASS", "actual": 0, "limit": 3},
-      "distinct_from_title": {"status": "PASS"}
+      "separator_format": {"status": "PASS", "found": []},
+      "phrase_not_sentence": {"status": "PASS", "details": []},
+      "no_embedded_pipe": {"status": "PASS", "found": []},
+      "char_utilization": {"status": "PASS", "actual": 0, "limit": 125},
+      "distinct_from_title": {"status": "PASS"},
+      "cross_field_repeat": {"status": "PASS", "limit": 2, "tbd": true, "details": []}
+    },
+    "display_string": {
+      "preview": "",
+      "combined_chars": 0,
+      "title_chars": 0,
+      "highlights_chars": 0,
+      "separator": " | (pipe U+007C, 渲染层自动拼接, 非字段内容)",
+      "note": "前端实测：标题与亮点拼成一行显示在标题位（亚马逊承认的展示 bug）"
     },
     "compliant": true,
     "fix_suggestions": []

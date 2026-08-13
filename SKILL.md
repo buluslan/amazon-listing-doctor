@@ -10,7 +10,7 @@ allowed-tools:
   - Edit
 metadata:
   category: ecommerce/amazon
-  version: 0.4.1
+  version: 0.4.2
   markets: [US, UK, DE, FR, IT, ES, JP, CA, AU]
 ---
 
@@ -28,7 +28,7 @@ metadata:
 | **A9** | 收录健康度 | 0-100 | 被 A9 搜索引擎有效收录的能力（核心词前置/backend 卫生/属性完整/有效索引词） |
 | **COSMO** | 意图覆盖度 | 0-100 + 覆盖率% | 用户意图/常识概念覆盖（use_case/audience/goal/constraint 四维），基于公开论文精神，**非官方分** |
 | **Alexa** | Alexa 可发现性（AEO） | 0-100 | AI 购物助手（Alexa for Shopping / Rufus）问答命中率：模拟买家提问看 listing 能否被回答/推荐 |
-| + 合规 | 合规体检 | PASS/FAIL/WARN | 2026-07-27 新规硬规则（标题75字符、亮点125字符、五点、backend、图片） |
+| + 合规 | 合规体检 | PASS/FAIL/WARN | 2026-07-27 新规硬规则（标题75字符、亮点125字符逗号短语、标题与亮点竖线拼接同行、五点、backend、图片） |
 
 > 主总分用 **CDQ**（有官方权重背书）；A9/COSMO/Alexa 是并列诊断维度，**不强行聚合成"四维总分"**（无官方聚合权重，会误导）。
 
@@ -58,7 +58,7 @@ metadata:
 | **前台（详情页可见）** | `title` / `bullets` / `description` / `images` / `brand` / `category` / `market` / `language` / `has_a_plus` / `attributes_filled` / `attributes_top10_expected` | 第三方 API / SP-API 均可取 |
 | **后台（详情页不可见）** | `item_highlights` / `backend_search_terms` / `band_a_critical_6` / `is_parent` / `is_variation` / 父子体属性映射 | **必须从 Seller Central 后台导出**，外部 API 取不到 |
 
-**为什么这样切**：前台数据 = 亚马逊详情页对买家可见的字段，第三方工具理论上都能抓；后台数据 = 仅 Seller Central 后台可编辑的字段（`backend_search_terms` 是隐藏索引字段、`item_highlights` 是部分类目的隐藏属性），外部 API 拿不到。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。
+**为什么这样切**：前台数据 = 亚马逊详情页对买家可见的字段，第三方工具理论上都能抓；后台数据 = 仅 Seller Central 后台可编辑的字段（`backend_search_terms` 是隐藏索引字段；`item_highlights` 是 2026 新增字段——**卖家精灵 `asin_detail` 实测无此字段，且返回的 `title` 仍是旧版长标题**，需手动按 75 字符拆分或 Seller Central 导出）。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。
 
 归一化是 LLM 的活（输入格式千变万化），脚本只处理 JSON（确定）。缺的字段留空，对应检查自动跳过。
 
@@ -188,7 +188,7 @@ python scripts/compliance_report.py --file listing.json
 | 脚本 | 作用 | 退出码 |
 |------|------|--------|
 | lint_title.py | 标题合规（75 字符 / 重复词 / 禁字符 / 促销词 / 主观词 / 核心词前置 / 大小写） | 0/1 |
-| lint_highlights.py | 商品亮点（125 字符 / ≥3 短句） | 0/1 |
+| lint_highlights.py | 商品亮点（125 字符 / ≥3 短语 / 逗号格式 / 合并呈现串 / 跨字段重复 TBD） | 0/1 |
 | lint_bullets.py | 五点（5-6 条 / 单条 ≤500 字符 / **按 language 豁免介词堆砌**） | 0/1 |
 | lint_backend.py | backend search terms（≤250 字节 / 空格分隔 / 无停用词） | 0/1 |
 | image_check.py | 图片缺陷 → CDQ 图片分 | 0/1 |

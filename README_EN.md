@@ -13,7 +13,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-0.4.1-black.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.2-black.svg)]()
 [![中文](https://img.shields.io/badge/lang-中文-red.svg)](README.md)
 
 **CDQ Quality Score · A9 Indexability · COSMO Intent Coverage · Alexa Discoverability · Compliance · Title Triage**
@@ -121,6 +121,14 @@ amazon-listing-doctor/
 ```
 
 ## 📈 Changelog
+
+**v0.4.2 — Title & Item Highlights display: principled fix**
+
+Fixed a fundamental error where the title and item_highlights were audited as two independent fields. Verified (Aug 2026, Amazon official + live page inspection): they are independent fields in the backend, but **the frontend actually concatenates them into one line with a pipe `|`** at the title position (an Amazon-acknowledged display bug). This release rebuilds highlights auditing around that reality:
+- `lint_highlights.py` rewritten: new **display string** audit layer (concatenated preview + combined char count) + comma-separated phrase format check (official requirement, non-comma → WARN) + no self-embedded separator + cross-field repeated words (WARN, marked TBD — no official cross-field rule) + 125-char utilization
+- `rules.json` highlights: 7 new fields (render_separator / display_concatenated / required_separator etc.) codifying the display reality
+- `new-rules-2026.md` §2 rewritten: three-layer facts + the `|` U+007C vs forbidden `¦` U+00A6 pitfall + comma-phrase format + sellersprite has no highlights field
+- Output/report templates + SKILL.md synced with the display-string section
 
 **v0.4.1 — ALEXA question generation switched to protocol-driven**
 

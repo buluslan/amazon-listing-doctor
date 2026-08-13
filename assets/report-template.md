@@ -50,7 +50,7 @@
 
 ## 一、合规体检
 
-> 检查 Listing 各字段是否违反 Amazon 硬规则：标题 75 字符、亮点 ≤125 字符且 ≥3 短句、五点 5-6 条且单条 ≤500 字符、后台搜索词 ≤250 字节等。
+> 检查 Listing 各字段是否违反 Amazon 硬规则：标题 75 字符、亮点 ≤125 字符（逗号分隔短语）且 ≥3 短语、五点 5-6 条且单条 ≤500 字符、后台搜索词 ≤250 字节等。标题与亮点在前端拼成一行（竖线分隔），1.2 节给出合并呈现串。
 
 ### 1.1 标题（Title）
 
@@ -74,15 +74,31 @@
 
 ### 1.2 商品亮点（Highlights）
 
+> ℹ️ 2026 新规：标题与亮点在**前端拼成一行**显示在标题位（竖线 `|` 分隔，亚马逊承认的展示 bug）。后台虽是两个独立字段，但买家看到的是一行连续文本——故下方单独给出"合并呈现串"。
+
 - **当前值**: `{{highlights.value}}`
 - **字符数**: `{{highlights.char_count}}` / 125
+- **短语数**: `{{highlights.clause_count}}`（官方要求逗号分隔）
 - **合规**: `{{highlights.compliant}}`
+
+**合并呈现串**（前端实际形态，系统自动用 `|` 拼接，卖家无需手填分隔符）：
+
+> `{{highlights.display_string.preview}}`
+
+合并字符数: `{{highlights.display_string.combined_chars}}`（标题 `{{highlights.display_string.title_chars}}` + 亮点 `{{highlights.display_string.highlights_chars}}`）
 
 | 检查项 | 状态 | 详情 |
 |---|---|---|
 | 字符上限 | `{{highlights.checks.char_limit.status}}` | `{{highlights.checks.char_limit.actual}}` / 125 |
-| 短句数 ≥3 | `{{highlights.checks.min_clauses.status}}` | `{{highlights.checks.min_clauses.actual}}` / `{{highlights.checks.min_clauses.limit}}` |
+| 短语数 ≥3 | `{{highlights.checks.min_clauses.status}}` | `{{highlights.checks.min_clauses.actual}}` / `{{highlights.checks.min_clauses.limit}}` |
+| 逗号分隔格式 | `{{highlights.checks.separator_format.status}}` | `{{highlights.checks.separator_format.found}}` |
+| 短语非句子 | `{{highlights.checks.phrase_not_sentence.status}}` | `{{highlights.checks.phrase_not_sentence.details}}` |
+| 不含自填分隔符 | `{{highlights.checks.no_embedded_pipe.status}}` | `{{highlights.checks.no_embedded_pipe.found}}` |
+| 字符利用率 | `{{highlights.checks.char_utilization.status}}` | `{{highlights.checks.char_utilization.actual}}` / 125 |
 | 与标题不重复 | `{{highlights.checks.distinct_from_title.status}}` | — |
+| 跨字段重复词(TBD) | `{{highlights.checks.cross_field_repeat.status}}` | `{{highlights.checks.cross_field_repeat.details}}` |
+
+> ⚠️ 跨字段重复词为 TBD 项（官方无跨字段明文规则，拼接同行后买家会看到堆砌），仅 WARN 不计合规。
 
 **修复建议**:
 {{highlights.fix_suggestions}}

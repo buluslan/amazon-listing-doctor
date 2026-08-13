@@ -58,23 +58,59 @@
 
 | 字段 | 值 | 说明 |
 |---|---|---|
-| `highlights.max_chars` | **125** | 商品亮点字段字符上限 |
-| `highlights.min_short_clauses` | **3** | 最少 3 个短句 |
+| `highlights.max_chars` | **125** | 商品亮点字段字符上限（含空格） |
+| `highlights.min_short_clauses` | **3** | 最少 3 个短语 |
+| `highlights.required_separator` | **`,`** | 短语间用**逗号**分隔（官方 FAQ 明确，非分号/竖线/换行） |
+| `highlights.phrase_not_sentence` | **true** | 逗号分隔的**短语**，不是完整句子 |
+| `highlights.max_clause_chars` | **40** | 单短语启发式上限（超长提示可能写成句子，WARN） |
+| `highlights.render_separator` | pipe `U+007C` | 前端渲染层把标题与亮点拼成一行时的分隔符，**非字段内容本身**（详见 2.2） |
+| `highlights.display_concatenated` | **true** | 实测：前端把标题与亮点拼成一行显示在标题位（详见 2.2） |
+| `highlights.prerequisite_title_within` | **75** | 前提：标题已 ≤75 字符，亮点字段才可填 |
 | `highlights.distinct_from_title` | **true** | 不重复标题文本（完全重复则 WARN） |
+| `highlights.cross_field_repeat_check` | **true** | 跨字段重复词 WARN（拼接同行后买家会看到堆砌，标 TBD，不计 FAIL） |
 
-### 2.2 字段定位
+### 2.2 展示关系：后台两个字段，前端拼成一行（实测，最关键）
 
-| 属性 | 说明 |
+> ⚠️ **本 skill 最关键的认知**：标题和亮点在**后台是两个独立字段**，但**前端实际渲染把两者用竖线拼成一行**显示在标题位。质检必须按"拼接同行"建模，不能当成两个互不相干的字段各查各的。这也是本 skill 此前的原则性错误所在。
+
+**三层事实**（2026-08 联网核实，一手来源：亚马逊官方卖家中心 + 官方论坛 + 真实页面实测）：
+
+| 层面 | 事实 |
 |---|---|
-| **显示位置** | 搜索结果页 + 商品详情页标题**正下方**——买家无需点进详情页即可看到 |
-| **字符上限** | 125 字符 |
-| **建议结构** | 3-5 个短句，覆盖：材质、使用场景、核心功能、规格 |
-| **关键词索引** | **支持关键词索引**，但搜索权重**低于标题**（`indexability_rules.json`: `field_weights.highlights = 4`，标题 = 5） |
-| **关键词策略** | 标题放行业核心大词；亮点布局长尾词、场景词；**禁止简单重复标题内容** |
-| **与五点描述的区别** | 五点描述（About this item）只在详情页；亮点在搜索页就显示——**亮点 ≠ 五点描述** |
+| **后台** | `title` 与 `item_highlights` 是两个独立字段，分别填写、分别索引 |
+| **前端实测** | SERP + PDP 的标题位把"标题 竖线 亮点"用 pipe（U+007C，前后带空格）**拼成一行**连续显示；PDP 标题下方无独立亮点区 |
+| **官方设计意图** | 亮点应显示在标题"**下方**"分两行（官方 FAQ 原文） |
+| **现状** | "拼进标题而非分行"是**亚马逊官方承认的展示 bug，正在调查**（官方员工 Roberto_Amazon 在卖家论坛确认） |
+
+**实测样本**（ASIN B0CY9PB6P3，PDP 的 `#productTitle` 字段）：
+
+```
+RAYMYLO Insulated Water Bottle 87 oz, Triple Wall Vacuum Stainless Steel | (Cold for 48 Hrs), Leak Proof & Non-BPA, Modern Water Flask Jug with Paracord Handle & Straw Spout Lids
+```
+
+竖线前 ≈71 字符（item name，≤75），竖线后 ≈100 字符（item highlights，≤125）。
+
+**分隔符细节（极易踩坑）**：
+- 渲染拼接用的是 `|`（pipe，**U+007C**，连续竖线）
+- 标题禁用字符清单里禁的是 `¦`（**broken bar，U+00A6**，断开的竖线）——两者是**不同字符**
+- `|`（U+007C）**不在**标题禁用字符清单内；官方文档对分隔符只字未提（设计意图是分两行，本就没设计拼接逻辑）
+- **结论**：卖家**不需要也不应该**在 title 或 highlights 字段里自己手填 `|`——那是系统渲染层自动拼的。若 highlights 内容里出现 `|`，提示移除（会干扰系统拼接）
+
+**格式硬要求**（官方 FAQ 原文）：
+- **逗号分隔的短语**，不是完整句子：`(Cold for 48 Hrs), Leak Proof & Non-BPA, ...`
+- **前提条件**：只有标题已 ≤75 字符时，亮点字段才可用；标题超限时该字段不可填
+
+**对质检的三个直接影响**：
+1. **要有"合并呈现串"视角**：买家实际看到的是"标题 竖线 亮点"一行，质检须有拼接串层（预览 + 合并字符数），不能 title / highlights 各查各的
+2. **跨字段重复词**：拼接同行后，某词在标题出现又在亮点出现，买家在一行里连续看到堆砌——给 WARN（官方无跨字段明文，标 TBD，不计 FAIL）
+3. **亮点格式**：必须逗号短语、非句子（非逗号分隔符给 WARN；单段过长/含句号提示可能写成句子）
+
+**与五点描述的区别**（确认：完全不同字段）：亮点是 2026 新增、125 字符、逗号短语、显示在标题区；五点是详情页中部 "About this item"、每条独立要点。**亮点 ≠ 五点描述**。
 
 > A9 权重说明：`highlights_weight_note` = "2026 new field, A9 weight unverified (estimated 4), mark TBD"。
 > 即 125 字段是 2026 新增字段，A9 实际索引权重尚未官方确认，估算为 4（低于标题 5），**标注 TBD 待验证**。
+>
+> 数据获取约束：卖家精灵 `asin_detail` **无 `item_highlights` 字段**，且返回的 `title` 仍是旧版长标题（实测 180 字符）——即卖家精灵未跟上 7-27 新规的字段拆分。亮点必须 Seller Central 导出，标题需按 75 字符手动拆分。
 
 ### 2.3 关键词分层
 
@@ -87,17 +123,23 @@
 
 **铁律**：四层不重复，各有分工。标题已有的词不重复塞进其他三层（重复不加分，浪费字符/字节）。
 
-### 2.4 优秀案例
+### 2.4 优秀案例（含合并呈现预览）
 
 ```
 title:           Anker Soundcore Liberty 4 NC Earbuds, Black
-item_highlights: Active Noise Cancellation up to 45dB; Bluetooth 5.3;
-                 50H playtime with case; IPX5 waterproof
+item_highlights: Active Noise Cancellation up to 45dB, Bluetooth 5.3, 50H playtime with case, IPX5 waterproof
+```
+
+**前端合并呈现串**（系统自动用 pipe 拼接，卖家无需手填分隔符）：
+
+```
+Anker Soundcore Liberty 4 NC Earbuds, Black | Active Noise Cancellation up to 45dB, Bluetooth 5.3, 50H playtime with case, IPX5 waterproof
 ```
 
 - 标题 47 字符 ≤ 75 ✓
-- 亮点覆盖 4 个差异化卖点（降噪 / 蓝牙 / 续航 / 防水），均为标题未出现的长尾/规格词 ✓
-- 亮点 108 字符 ≤ 125 ✓，4 个短句 ≥ 3 ✓
+- 亮点用**逗号**分隔 4 个短语（非分号、非完整句子）✓，108 字符 ≤ 125 ✓，4 短语 ≥ 3 ✓
+- 4 个差异化卖点（降噪 / 蓝牙 / 续航 / 防水）均为标题未出现的长尾/规格词，跨字段无堆砌 ✓
+- 合并串总长 ≈158 字符（47 + 3 + 108），买家在一行内同时看到品牌型号 + 核心规格
 
 ---
 

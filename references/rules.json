@@ -149,7 +149,22 @@
   "highlights": {
     "max_chars": 125,
     "min_short_clauses": 3,
-    "distinct_from_title": true
+    "required_separator": ",",
+    "phrase_not_sentence": true,
+    "max_clause_chars": 40,
+    "render_separator": "|",
+    "display_concatenated": true,
+    "prerequisite_title_within": 75,
+    "distinct_from_title": true,
+    "cross_field_repeat_check": true,
+    "_notes_highlights": [
+      "required_separator=,：官方明确亮点短语间用逗号分隔，非分号/竖线/换行（官方 FAQ 原文）。",
+      "phrase_not_sentence=true：官方要求『以逗号分隔的短语，而不是完整的句子』；max_clause_chars=40 为启发式，单段超长提示可能写成句子。",
+      "render_separator=|：前端『渲染层』把 title 与 highlights 拼成一行时的分隔符（pipe U+007C），非字段内容本身。注意区分：标题禁用字符清单禁的是 ¦（broken bar U+00A6），渲染拼接用的 |（pipe U+007C）不在禁用清单。",
+      "display_concatenated=true：实测（2026-08）前端 SERP + PDP 把『标题 | 亮点』拼成一行显示在标题位，与官方『亮点在标题下方分行』的设计意图不符；亚马逊官方已在卖家论坛承认此为展示 bug，正在调查。质检须按『拼接同行』的真实呈现建模。",
+      "prerequisite_title_within=75：官方 FAQ——只有标题已 ≤75 字符时，亮点字段才可填写。",
+      "cross_field_repeat_check=true：拼接同行后，标题词在亮点里再出现会造成跨字段堆砌（买家在一行里连续看到）。给 WARN 级建议；但官方无跨字段重复明文规则，标 TBD，不计入 compliant/FAIL。"
+    ]
   },
   "bullets": {
     "count_min": 5,

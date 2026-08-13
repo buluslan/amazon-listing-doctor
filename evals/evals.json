@@ -1,6 +1,6 @@
 {
   "skill_name": "amazon-listing-doctor",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "notes": "验收基线：每个 eval 的 listing.json 喂给 scripts/compliance_report.py，须 overall_compliant=true 且 CDQ>=Good；反例须被脚本抓到对应 FAIL。",
   "evals": [
     {
