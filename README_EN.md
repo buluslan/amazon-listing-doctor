@@ -5,7 +5,7 @@
 
 # 🩺 Amazon Listing Doctor
 
-**An open-source Amazon Listing health-check & scoring Skill built on four engines: CDQ, A9, COSMO, and Alexa**
+**Run a full health check on your Amazon Listing — and dig out the traffic-doubling opportunities**
 
 **For the latest AI industry trends, AI × e-commerce/advertising practices, and thoughts on human-AI collaboration, follow the WeChat Official Account: 【新西楼】(Xinxi Lou AI)**
 
@@ -26,9 +26,12 @@
 
 ## Introduction
 
-Amazon Listing Doctor is an **Agent-native** Amazon Listing quality-check Skill for Claude Code, OpenCode, and other AI coding agents. It runs a full health check + scoring on any listing across four knowledge engines (CDQ / A9 / COSMO / Alexa for Shopping) and outputs a multi-dimensional health report. **Zero dependencies, zero API keys** — pure Python standard library, clone and run.
+amazon-listing-doctor is an Amazon Listing quality-check skill developed by buluslan (WeChat Official Account: 新西楼.AI). Built on four knowledge engines — CDQ / A9 / COSMO / Alexa — it gives any listing a full health check with scores, outputs a diagnosis report, and helps you dig out "double-the-traffic, overtake-on-the-curve" opportunities.
 
-**Diagnosis only, no rewriting** — it tells you *what's wrong and what to fix*; the rewriting is up to you.
+> [!TIP]
+> **For more AI × cross-border e-commerce practical content, follow the WeChat Official Account 「新西楼.AI」**
+
+As an **Agent-native** tool, it works with all kinds of AI Coding Agents — **zero dependencies, zero API keys**, pure Python standard library, clone and run. **Diagnosis only, no rewriting** — it tells you *what's wrong and what to fix*; the rewriting is up to you.
 
 **Compatibility**: CLI-based, works in any agent that can run shell commands — Claude Code (loaded as a Skill) / OpenCode / Cursor / Windsurf / plain terminal.
 

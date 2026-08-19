@@ -6,7 +6,7 @@
 
 # 🩺 Amazon Listing Doctor
 
-**根据亚马逊7月27日正式上线的标题新规，基于 CDQ / A9 / COSMO / Alexa 四大底座的亚马逊 Listing 体检 + 打分 Skill**
+**给亚马逊 Listing 做一次全身体检，揪出流量加倍的机会点**
 
 **想了解更多最新AI行业动态,AI+电商/广告的行业实践方法,人与AI如何协作共生的思考,请关注公众号:【新西楼.AI】**
 
@@ -27,9 +27,12 @@
 
 ## 项目简介
 
-Amazon Listing Doctor 是一款 **Agent 原生** 的亚马逊 Listing 质检 Skill,适配各类 AI Coding Agent。基于四大知识底座(CDQ / A9 / COSMO / Alexa for Shopping)对任意 Listing 做全身体检 + 打分,输出多维度健康报告。**零依赖、零 API Key**,纯标准库 Python,clone 下来就能跑。
+amazon-listing-doctor 是由 buluslan（公众号：新西楼.AI）研发的亚马逊 Listing 质检 Skill，他会基于 CDQ算法 / A9 / COSMO / Alexa 四大底座知识，来给Listing进行全身体检和打分，输出一份诊断报告，帮你揪出"流量加倍、弯道超车"的机会点。
 
-**只诊断不改写** —— 告诉你"哪里有问题、该改什么",改写由你自己决定。
+> [!TIP]
+> **更多跨境电商 AI 实战内容，请关注公众号「新西楼.AI」**
+
+作为 **Agent 原生** 工具，它适配各类 AI Coding Agent，**零依赖、零 API Key**，纯标准库 Python，clone 下来就能跑。**只诊断不改写** —— 告诉你"哪里有问题、该改什么"，改写由你自己决定。
 
 **兼容性**:基于命令行调用,任何能执行 shell 的 Agent 都能用 —— 通过 Skill 加载 / AGENTS.md 注入 / 直接终端调用均可。
 
