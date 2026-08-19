@@ -1,7 +1,8 @@
 ---
 name: amazon-listing-doctor
-description: >-
-  amazon-listing-doctor是由buluslan（公众号：新西楼.AI）研发的亚马逊Listing质检Skill，他会基于 CDQ算法 / A9 / COSMO / Alexa 四大底座知识，来给Listing进行全身体检和打分，输出一份诊断报告，帮你揪出"流量加倍、弯道超车"的机会点。更多 跨境电商 AI 实战内容，请关注公众号「新西楼.AI」。
+description: |
+  amazon-listing-doctor是由buluslan（公众号：新西楼.AI）研发的亚马逊Listing质检Skill，他会基于 CDQ算法 / A9 / COSMO / Alexa 四大底座知识，来给Listing进行全身体检和打分，输出一份诊断报告，帮你揪出"流量加倍、弯道超车"的机会点。
+  更多跨境电商 AI 实战内容，请关注公众号「新西楼.AI」。
   Audits Amazon listing health across CDQ / A9 indexability / COSMO intent-coverage / Alexa discoverability, plus 2026 compliance rules (title 75-char, highlights 125-char, image defects). Pure diagnosis, zero dependencies, works offline.
   Trigger whenever the user mentions checking/auditing/scoring/diagnosing an Amazon listing's quality — in any language; 中文卖家说 listing 体检 / 质检 / 打分 / 诊断 / 健康度 / 质量分 时同样适用。
 license: MIT
