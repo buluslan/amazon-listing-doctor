@@ -14,7 +14,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-0.4.6-black.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.7-black.svg)]()
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](README_EN.md)
 
 **CDQ 质量分 · A9 收录 · COSMO 意图覆盖 · Alexa 可发现性 · 合规体检 · 标题词组分诊**
@@ -91,10 +91,10 @@ python scripts/title_triage.py --file listing.json     # 标题词组分诊
 
 | 分层 | 字段 | 来源 |
 |------|------|------|
-| **前台（详情页可见）** | title / bullets / description / images / brand / has_a_plus / market / language / attributes_filled / attributes_top10_expected | 第三方 API / SP-API 均可取 |
-| **后台（详情页不可见）** | item_highlights / backend_search_terms / band_a_critical_6 / is_parent / is_variation | **必须从 Seller Central 后台导出** |
+| **前台（详情页可见）** | title / item_highlights / bullets / description / images / brand / has_a_plus / market / language / attributes_filled / attributes_top10_expected | 第三方 API / SP-API 均可取；⚠️ item_highlights 与 title 在标题区竖线拼接同行显示，多数抓取入口拿到的是拼接串——skill 会提示拆分（SKILL.md §1.2） |
+| **后台（详情页不可见）** | backend_search_terms / band_a_critical_6 / is_parent / is_variation | **必须从 Seller Central 后台导出** |
 
-为什么这样切:前台数据=详情页对买家可见,第三方工具理论上都能拉;后台数据(backend_search_terms/item_highlights)=隐藏索引字段,外部 API 拿不到。Skill 支持用户单独贴前台/后台/两者一起,缺字段不影响审计流程跑通。
+为什么这样切:前台数据=详情页对买家可见,第三方工具理论上都能拉;后台数据(backend_search_terms)=隐藏索引字段,外部 API 拿不到。item_highlights 特殊:前台可见(与标题拼接同行)但卖家精灵取不到,需 Seller Central 导出或从拼接串拆分。Skill 支持用户单独贴前台/后台/两者一起,缺字段不影响审计流程跑通。
 
 ### 评分降级示例
 

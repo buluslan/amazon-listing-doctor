@@ -108,9 +108,18 @@ def check_char_limit(title, rules, categories_cfg, market, language, mode, categ
     if (market or "").upper() == "ME":
         details.append("中东站跳过 75 字符规则")
 
+    # 拼接串排查提示：页面抓取/第三方 API 拿到的常是「标题+亮点」拼接串（有 | 或无竖线逗号形态），
+    # 拼接串当 title 审计会误判 FAIL。只给信号，拆分判断留给 Agent（见 SKILL.md §1.2）。
+    has_pipe = "|" in title or "¦" in title
+    if has_pipe:
+        # 竖线是确定信号，与长度无关（真实 title + 亮点拼接后可能仍 <75），故独立于 FAIL 分支。
+        details.append("标题含 | 分隔符：「标题+亮点」竖线拼接串，先按 | 拆分再判（见 SKILL.md 输入归一化 §1.2）")
+
     if actual > limit:
         status = "FAIL"
         details.append(f"超出上限 {actual}/{limit}")
+        if not has_pipe:
+            details.append("若来源为页面抓取/第三方 API：可能是「标题+亮点」拼接串（无竖线降级模板），先按无空格逗号边界拆分并自洽验证再判（见 SKILL.md 输入归一化 §1.2）")
     else:
         status = "PASS"
 

@@ -13,7 +13,7 @@ allowed-tools:
   - Edit
 metadata:
   category: ecommerce/amazon
-  version: 0.4.6
+  version: 0.4.7
   markets: [US, UK, DE, FR, IT, ES, JP, CA, AU]
 ---
 
@@ -58,10 +58,24 @@ metadata:
 
 | 分层 | 字段 | 来源 |
 |------|------|------|
-| **前台（详情页可见）** | `title` / `item_highlights` / `bullets` / `description` / `images` / `brand` / `category` / `market` / `language` / `has_a_plus` / `attributes_filled` / `attributes_top10_expected` | 第三方 API / SP-API 均可取；⚠️ `item_highlights` 例外：与 title 在标题区竖线拼接同行显示（前台可见），但卖家精灵取不到，需 Seller Central 导出或从拼接 title 按 `\|` 手动拆 |
+| **前台（详情页可见）** | `title` / `item_highlights` / `bullets` / `description` / `images` / `brand` / `category` / `market` / `language` / `has_a_plus` / `attributes_filled` / `attributes_top10_expected` | 第三方 API / SP-API 均可取；⚠️ `item_highlights` 例外：与 title 在标题区竖线拼接同行显示（前台可见），但卖家精灵取不到，需 Seller Central 导出或按 §1.2 拆分拼接串 |
 | **后台（详情页不可见）** | `backend_search_terms` / `band_a_critical_6` / `is_parent` / `is_variation` / 父子体属性映射 | **必须从 Seller Central 后台导出**，外部 API 取不到 |
 
-**为什么这样切**：前台数据 = 亚马逊详情页对买家可见的字段；后台数据 = 仅 Seller Central 后台可编辑、详情页不可见的字段（`backend_search_terms` 是隐藏索引字段）。⚠️ `item_highlights` 特殊：它与 title 在标题区**竖线拼接同行显示**（前台可见，亚马逊官方确认），故归前台；但卖家在 Seller Central 编辑、卖家精灵取不到（返回的 title 是旧版长拼接串），需 Seller Central 导出或从拼接 title 按 `|` 手动拆。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。
+**为什么这样切**：前台数据 = 亚马逊详情页对买家可见的字段；后台数据 = 仅 Seller Central 后台可编辑、详情页不可见的字段（`backend_search_terms` 是隐藏索引字段）。⚠️ `item_highlights` 特殊：它与 title 在标题区**竖线拼接同行显示**（前台可见，亚马逊官方确认），故归前台；但卖家在 Seller Central 编辑、卖家精灵取不到（返回的 title 是旧版长拼接串），需 Seller Central 导出，拆分方法见 §1.2。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。
+
+#### 1.2 标题区拼接串识别与拆分（页面抓取 / 第三方 API 来源必查）
+
+> 后台上 title 与 item_highlights 是两个独立字段，前台渲染成一行。**除 Seller Central 导出外，几乎所有入口拿到的都是拼接串**：未登录浏览器/curl 抓页面拿到的是无竖线降级模板（逗号拼接），多数第三方 API 返回旧版长拼接串。直接把拼接串当 title 审计 → 标题必然 FAIL、CDQ title 子项判 0 ——**误判，不是产品真有问题**。归一化时必须先过下面这关：
+
+**识别与拆分三步**（Agent 语义判断优先，不钉死算法）：
+
+1. **触发怀疑**：来源是页面抓取 / 第三方 API，且 title 含 `|` 竖线，或 title 超 75 字符（新规下真实 title ≤75，超限即怀疑含拼接亮点）。
+2. **定位边界拆分**：含 `|` → 按竖线拆，首段为 title、其余合并为 item_highlights；无竖线 → 找拼接边界：**逗号后无空格处**（`Bags,2.4G` 形态——段内标点带空格，段间拼接无空格）优先，再语义复核后段是否为名词短语堆叠（无主谓、2-4 段、每段 15-60 字符，正是 item_highlights 特征）。
+3. **自洽验证才采信**：拆分后 `title ≤75` **且** `item_highlights ≥3 个逗号短语` → 两边同时合规 = 拆对了，采信；否则按整段 title 处理并在 `meta` 标注存疑。
+
+**采信拆分后**：`meta` 写 `title_derivation: "split_from_concatenated"`，报告如实标注「title 由标题区拼接串拆分而来，建议 Seller Central 导出复核」。**验证不过或来源存疑**：按整段审计 + data_coverage 标注「title 可能含拼接亮点」——宁可标疑，不可默默错判。
+
+> 误判代价不对称：拼接串当 title → 标题 FAIL + CDQ 崩（全盘错）；真超限标题被误拆 → 亮点是假的（局部错）。所以拆分必须过自洽验证这道门槛，不过就标疑。
 
 归一化是 LLM 的活（输入格式千变万化），脚本只处理 JSON（确定）。缺的字段留空，对应检查自动跳过。
 
