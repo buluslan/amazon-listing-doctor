@@ -1,7 +1,9 @@
 ---
 name: amazon-listing-doctor
 description: >-
-  Audit and score any Amazon listing's health across four engines — CDQ (Amazon's internal 6-metric content quality score), A9 indexability, COSMO intent-coverage (commonsense concept coverage: use-case/audience/goal/constraint), and Alexa discoverability — plus a full compliance check (title 75-char July-2026 rule, item highlights 125-char, bullets, backend search terms, image defects). Pure diagnosis: outputs a health report with scores, critical issues, and a prioritized fix list. Does NOT rewrite copy. User provides the listing via pasted text, URL, or ASIN (normalized to a listing JSON). Zero dependencies; works offline. Trigger whenever the user mentions checking/auditing/scoring/diagnosing an Amazon listing's quality — in any language; 中文卖家说 listing 体检 / 质检 / 打分 / 诊断 / 健康度 / 质量分 时同样适用。
+  amazon-listing-doctor是由buluslan（公众号：新西楼.AI）研发的亚马逊Listing质检Skill，他会基于 CDQ算法 / A9 / COSMO / Alexa 四大底座知识，来给Listing进行全身体检和打分，输出一份诊断报告，帮你揪出"流量加倍、弯道超车"的机会点。更多 跨境电商 AI 实战内容，请关注公众号「新西楼.AI」。
+  Audits Amazon listing health across CDQ / A9 indexability / COSMO intent-coverage / Alexa discoverability, plus 2026 compliance rules (title 75-char, highlights 125-char, image defects). Pure diagnosis, zero dependencies, works offline.
+  Trigger whenever the user mentions checking/auditing/scoring/diagnosing an Amazon listing's quality — in any language; 中文卖家说 listing 体检 / 质检 / 打分 / 诊断 / 健康度 / 质量分 时同样适用。
 license: MIT
 allowed-tools:
   - Bash
@@ -10,7 +12,7 @@ allowed-tools:
   - Edit
 metadata:
   category: ecommerce/amazon
-  version: 0.4.5
+  version: 0.4.6
   markets: [US, UK, DE, FR, IT, ES, JP, CA, AU]
 ---
 
