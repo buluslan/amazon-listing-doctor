@@ -13,7 +13,7 @@ allowed-tools:
   - Edit
 metadata:
   category: ecommerce/amazon
-  version: 0.4.7
+  version: 0.4.8
   markets: [US, UK, DE, FR, IT, ES, JP, CA, AU]
 ---
 
@@ -58,24 +58,18 @@ metadata:
 
 | 分层 | 字段 | 来源 |
 |------|------|------|
-| **前台（详情页可见）** | `title` / `item_highlights` / `bullets` / `description` / `images` / `brand` / `category` / `market` / `language` / `has_a_plus` / `attributes_filled` / `attributes_top10_expected` | 第三方 API / SP-API 均可取；⚠️ `item_highlights` 例外：与 title 在标题区竖线拼接同行显示（前台可见），但卖家精灵取不到，需 Seller Central 导出或按 §1.2 拆分拼接串 |
+| **前台（详情页可见）** | `title` / `item_highlights` / `bullets` / `description` / `images` / `brand` / `category` / `market` / `language` / `has_a_plus` / `attributes_filled` / `attributes_top10_expected` | 第三方 API / SP-API 均可取；⚠️ `item_highlights` 例外：前台有拼接一行 / 分行显示两种形态（见 §1.2），卖家精灵取不到，需 Seller Central 导出或按 §1.2 拆分拼接串 |
 | **后台（详情页不可见）** | `backend_search_terms` / `band_a_critical_6` / `is_parent` / `is_variation` / 父子体属性映射 | **必须从 Seller Central 后台导出**，外部 API 取不到 |
-
-**为什么这样切**：前台数据 = 亚马逊详情页对买家可见的字段；后台数据 = 仅 Seller Central 后台可编辑、详情页不可见的字段（`backend_search_terms` 是隐藏索引字段）。⚠️ `item_highlights` 特殊：它与 title 在标题区**竖线拼接同行显示**（前台可见，亚马逊官方确认），故归前台；但卖家在 Seller Central 编辑、卖家精灵取不到（返回的 title 是旧版长拼接串），需 Seller Central 导出，拆分方法见 §1.2。Skill 必须支持用户单独贴前台 JSON / 后台 JSON / 两者一起。
 
 #### 1.2 标题区拼接串识别与拆分（页面抓取 / 第三方 API 来源必查）
 
-> 后台上 title 与 item_highlights 是两个独立字段，前台渲染成一行。**除 Seller Central 导出外，几乎所有入口拿到的都是拼接串**：未登录浏览器/curl 抓页面拿到的是无竖线降级模板（逗号拼接），多数第三方 API 返回旧版长拼接串。直接把拼接串当 title 审计 → 标题必然 FAIL、CDQ title 子项判 0 ——**误判，不是产品真有问题**。归一化时必须先过下面这关：
+> 后台上 title 与 item_highlights 是两个独立字段。前台渲染**两种形态并存**：① 拼接一行——标题与亮点用竖线 `|` 连成一行；② 分行显示——标题字号更大、黑色，亮点在标题下方单独一行、字号更小、偏灰。外部抓取 / 第三方 API 拿到的 title 常是拼接串或旧版长标题，直接当 title 审计 → 标题误判 FAIL、CDQ title 子项误判 0 分。归一化时先过下面这关：
 
 **识别与拆分三步**（Agent 语义判断优先，不钉死算法）：
 
 1. **触发怀疑**：来源是页面抓取 / 第三方 API，且 title 含 `|` 竖线，或 title 超 75 字符（新规下真实 title ≤75，超限即怀疑含拼接亮点）。
-2. **定位边界拆分**：含 `|` → 按竖线拆，首段为 title、其余合并为 item_highlights；无竖线 → 找拼接边界：**逗号后无空格处**（`Bags,2.4G` 形态——段内标点带空格，段间拼接无空格）优先，再语义复核后段是否为名词短语堆叠（无主谓、2-4 段、每段 15-60 字符，正是 item_highlights 特征）。
-3. **自洽验证才采信**：拆分后 `title ≤75` **且** `item_highlights ≥3 个逗号短语` → 两边同时合规 = 拆对了，采信；否则按整段 title 处理并在 `meta` 标注存疑。
-
-**采信拆分后**：`meta` 写 `title_derivation: "split_from_concatenated"`，报告如实标注「title 由标题区拼接串拆分而来，建议 Seller Central 导出复核」。**验证不过或来源存疑**：按整段审计 + data_coverage 标注「title 可能含拼接亮点」——宁可标疑，不可默默错判。
-
-> 误判代价不对称：拼接串当 title → 标题 FAIL + CDQ 崩（全盘错）；真超限标题被误拆 → 亮点是假的（局部错）。所以拆分必须过自洽验证这道门槛，不过就标疑。
+2. **定位边界拆分**：含 `|` → 按竖线拆，首段为 title、其余合并为 item_highlights；无竖线 → 拼接边界候选有**两种——无空格逗号（`Bags,2.4G` 形态）、或普通逗号+空格**，两种都要生成候选，以第 3 步自洽验证择优；再语义复核后段是否为名词短语堆叠（无主谓、2-4 段、每段 15-60 字符，正是 item_highlights 特征）。
+3. **自洽验证才采信**：拆分后 `title ≤75` **且** `item_highlights ≥3 个逗号短语` → 两边同时合规 = 拆对了，采信；所有候选均不过 → 按整段 title 处理（可能确为超限老标题）并在 `meta` 标注存疑。
 
 归一化是 LLM 的活（输入格式千变万化），脚本只处理 JSON（确定）。缺的字段留空，对应检查自动跳过。
 
@@ -120,7 +114,7 @@ python scripts/compliance_report.py --file listing.json
 
 一次跑出全部维度：合规体检 + CDQ 评分 + A9 收录 + COSMO 意图覆盖 + Alexa 可发现性 + 图片缺陷 + 关键词分层覆盖。退出码 0=总体合规 / 1=有 FAIL。
 
-- **图片缺陷**：需 listing 含 `images` 字段（每张含 width/height/has_watermark/is_white_background/is_square）——由具备视觉能力的 LLM 分析用户贴图后填入，或用户从 Seller Central 后台导出图片组 JSON 自填。无图自动跳过。
+- **图片缺陷**：Agent 先自检是否具备视觉能力（能否直接读取图片）——能：自行读取主图组图片内容，按每张 width/height/has_watermark/is_white_background/is_square 填入 `images` 字段；不能：请用户提供图片或从 Seller Central 导出图片组 JSON 自填。无图自动跳过。
 - **标题词组分诊**：把标题拆成语义词组（按标点 + 介词边界），按词性 + 合规信号给每个词组去向建议（标题必留 / 下移亮点 / 下移五点 / 删除违规），confidence=low 的词组留人工复核。只给去向不给改写。
 
 #### 2.2 评分降级
@@ -163,7 +157,7 @@ python scripts/compliance_report.py --file listing.json
   "meta":{"source":"api|paste","unfetched_backend":[...]}
 }
 ```
-（LLM 按此 schema 归一化；缺的字段可留空，对应检查自动跳过 + 评分优雅降级。`attributes_top10_expected`/`band_a_critical_6` 不传时查 `references/category_attributes/<category>.json` 兜底，也可用户自填覆盖。`meta.unfetched_backend` 列出哪些真正后台字段仍待补。）
+（LLM 按此 schema 归一化；缺的字段可留空，对应检查自动跳过 + 评分优雅降级。属性期望清单优先级：**用户后台导出 > 前台类目筛选器实测 > 内置 `references/category_attributes/<category>.json` 兜底**——内置清单为公开版大类近似，兜底生效时脚本自动把属性子分标记为参考值（basis=builtin_fallback），报告不得把兜底 X/10 输出为官方口径。`meta.unfetched_backend` 列出哪些真正后台字段仍待补。）
 
 ## 脚本清单（13 个，纯标准库）
 
@@ -190,7 +184,7 @@ python scripts/compliance_report.py --file listing.json
 | 文件 | 何时读 |
 |------|--------|
 | `cosmo_ontology.json` | Agent 语义提取读 `extraction_guidance` 做概念提取；脚本 substring fallback 读 `_common` 词表；cosmo_check.py 自动读 |
-| `category_attributes/<category>.json` | 查类目 top10 必填属性（公开版；用户可自填覆盖） |
+| `category_attributes/<category>.json` | 查类目 top10 必填属性（公开版大类近似、低置信——兜底时评分自动标参考值；用户后台导出/前台筛选器实测优先） |
 | `new-rules-2026.md` | 用户问"为什么"时 |
 | `sites-overrides.md` | 非 US 站 |
 | `alexa_question_protocol.md` | ALEXA AEO 模式：Agent 读规范针对该产品生成买家问题（`alexa_check.get_agent_prompt` 自动读） |

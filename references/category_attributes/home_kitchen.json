@@ -1,5 +1,18 @@
 {
-  "product_types": ["Cookware Set", "Knife", "Cutting Board", "Storage Container", "Kitchen Tool"],
+  "_meta": {
+    "_meta": {
+      "confidence": "low",
+      "granularity": "broad_category",
+      "note": "Public broad-category approximation, not calibrated per sub-category: some attributes may not exist for a specific sub-category, and true facet attributes may be missing. Fallback only - scores using this list are marked as reference values; verify against Seller Central attribute panel or live storefront facet filters."
+    }
+  },
+  "product_types": [
+    "Cookware Set",
+    "Knife",
+    "Cutting Board",
+    "Storage Container",
+    "Kitchen Tool"
+  ],
   "top10_attributes": [
     "brand",
     "material",

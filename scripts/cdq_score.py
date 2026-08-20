@@ -81,11 +81,11 @@ def _load_category_attrs(category):
         return None
     cats = _load_json(REFERENCES / "categories.json") or {}
     cat_key = None
-    target = str(category).strip().lower()
+    target = str(category).strip().lower().replace(" ", "_")
     for k in cats:
         if k.startswith("_"):
             continue
-        if k.lower() == target:
+        if k.lower().replace(" ", "_") == target:
             cat_key = k
             break
     if cat_key is None:
@@ -131,10 +131,22 @@ def _round_score(x):
 # 6 维子分计算（每项返回 dict: {score, reason, missing?}）
 # ---------------------------------------------------------------------------
 def _score_attributes(data, cat_attrs, attr_cfg):
-    """structured_attribute：filled_top10_ratio；band_a 缺失过半 → 严重缺陷 0 分。"""
+    """structured_attribute：filled_top10_ratio；band_a 缺失过半 → 严重缺陷 0 分。
+
+    expected 来源标记 basis：user_provided（用户传入，可信）/
+    builtin_fallback（类目文件兜底，公开版大类近似 → 分数为参考值）/
+    no_reference（无任何基准 → 满分属数据假设，非真实满分）。
+    """
     expected = _to_list(data.get("attributes_top10_expected"))
-    if not expected and cat_attrs:
+    if expected:
+        basis = "user_provided"
+    elif cat_attrs and _to_list(cat_attrs.get("top10_attributes")):
         expected = _to_list(cat_attrs.get("top10_attributes"))
+        basis = "builtin_fallback"
+    else:
+        basis = "no_reference"
+    # fallback 分数仍是参考值：清单为公开版大类近似，未经子品类校准
+    ref_tag = " [reference: builtin broad-category list]" if basis == "builtin_fallback" else ""
 
     band_a = _to_list(data.get("band_a"))
     if not band_a and cat_attrs:
@@ -143,32 +155,42 @@ def _score_attributes(data, cat_attrs, attr_cfg):
     filled = _to_list(data.get("attributes_filled"))
     if not filled:
         filled = _to_list(data.get("attributes"))
-    filled_set = set(filled)
+    # 属性名大小写归一（filled 常见 "Color"，清单为 "color"，同名不同写）
+    filled_set = {str(a).strip().lower() for a in filled}
 
-    band_a_filled = [a for a in band_a if a in filled_set]
-    band_a_missing = [a for a in band_a if a not in filled_set]
+    def _norm(items):
+        return [str(a).strip().lower() for a in items]
+
+    band_a_filled = [a for a in _norm(band_a) if a in filled_set]
+    band_a_missing = [a for a in _norm(band_a) if a not in filled_set]
 
     severe_flag = attr_cfg.get("critical_defect_if_band_a_missing_gt_half", True)
-    if severe_flag and band_a and len(band_a_missing) > len(band_a) / 2:
+    # 惩罚性判决（0 分）只建立在可信基准上：builtin_fallback 清单未校准，
+    # 缺失可能是"该子品类无此属性"而非"卖家漏填"——降为 ratio 参考值呈现
+    if severe_flag and basis == "user_provided" and band_a and len(band_a_missing) > len(band_a) / 2:
         names = ",".join(band_a_missing[:3])
         suffix = " etc" if len(band_a_missing) > 3 else ""
         return {
             "score": 0.0,
+            "basis": basis,
             "reason": f"critical defect: band_a missing {len(band_a_missing)}/"
-                      f"{len(band_a)} (>half): {names}{suffix}",
+                      f"{len(band_a)} (>half): {names}{suffix}{ref_tag}",
             "missing_top10": [a for a in expected if a not in filled_set],
         }
 
     if not expected:
-        return {"score": 1.0, "reason": "no expected attributes defined",
+        return {"score": 1.0, "basis": basis,
+                "reason": "no expected attributes defined (assumed full — data gap, not verified)",
                 "missing_top10": []}
 
-    filled_in_expected = [a for a in expected if a in filled_set]
-    missing = [a for a in expected if a not in filled_set]
+    expected_norm = _norm(expected)
+    filled_in_expected = [a for a in expected_norm if a in filled_set]
+    missing = [a for a in expected_norm if a not in filled_set]
     ratio = len(filled_in_expected) / len(expected)
     return {
         "score": _round_score(ratio),
-        "reason": f"{len(filled_in_expected)}/{len(expected)} top10 filled",
+        "basis": basis,
+        "reason": f"{len(filled_in_expected)}/{len(expected)} top10 filled{ref_tag}",
         "missing_top10": missing,
     }
 
@@ -400,6 +422,8 @@ def run(data):
             "weight": round(w, 4),
             "reason": comp_raw[k]["reason"],
         }
+        if comp_raw[k].get("basis"):
+            components_out[k]["basis"] = comp_raw[k]["basis"]
         total += score * w
 
     total_100 = _round1(total * 100)

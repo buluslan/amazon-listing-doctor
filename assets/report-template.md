@@ -69,6 +69,8 @@
 | 大小写 | `{{title.checks.casing.status}}` | — |
 | 核心词前置 | `{{title.checks.core_keyword_pos.status}}` | 前 `{{title.checks.core_keyword_pos.within_chars}}` 字符内（限 `{{title.checks.core_keyword_pos.limit}}`） |
 
+> ⚠️ 前端标题与商品亮点的呈现形态目前不稳定（拼接一行 / 分行显示两种形态并存，且随亚马逊灰度切换）——本节标题判定基于归一化输入，动手修改前建议你自行打开 listing 页面二次确认实际显示形态。
+
 **修复建议**:
 {{title.fix_suggestions}}
 
@@ -136,6 +138,8 @@
 - **Top10 属性完整度**: `{{attributes.filled_ratio}}`（已填 `{{attributes.filled}}` / 期望 `{{attributes.top10_expected}}`）
 - **Band A 关键 6 项**: 已填 `{{attributes.band_a_filled}}` / 全量 `{{attributes.band_a_critical_6}}`
 - **属性合规**: `{{attributes.compliant}}`
+
+> ⚠️ 若属性期望清单来自工具内置兜底（`cdq_score.components.structured_attribute.basis == "builtin_fallback"`），上述完整度为**参考值**——内置清单为公开版大类近似，可能不符子品类；结论以 Seller Central 属性面板或前台类目筛选器实测为准。
 
 | 变体检查 | 状态 |
 |---|---|

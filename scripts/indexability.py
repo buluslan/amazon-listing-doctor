@@ -18,6 +18,8 @@ from pathlib import Path
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 RULES_PATH = SKILL_ROOT / "references" / "indexability_rules.json"
+CATEGORIES_PATH = SKILL_ROOT / "references" / "categories.json"
+ATTRS_DIR = SKILL_ROOT / "references" / "category_attributes"
 
 # 停用词 (与 rules.json -> backend_search_terms.stopwords 对齐)
 STOPWORDS = {
@@ -42,6 +44,27 @@ def _load_rules():
     if not RULES_PATH.exists():
         return {}
     return json.loads(RULES_PATH.read_text(encoding="utf-8"))
+
+
+def _load_category_attrs(category):
+    """按 category 名查 categories.json → category_attributes/<file>.json（与 cdq_score 同源兜底，空格/下划线归一匹配）。"""
+    if not category or not CATEGORIES_PATH.exists():
+        return {}
+    try:
+        cats = json.loads(CATEGORIES_PATH.read_text(encoding="utf-8")) or {}
+        target = str(category).strip().lower().replace(" ", "_")
+        attr_file = None
+        for k, v in cats.items():
+            if str(k).startswith("_"):
+                continue
+            if str(k).lower().replace(" ", "_") == target:
+                attr_file = (v or {}).get("attr_file")
+                break
+        if attr_file and (ATTRS_DIR / attr_file).exists():
+            return json.loads((ATTRS_DIR / attr_file).read_text(encoding="utf-8")) or {}
+    except (json.JSONDecodeError, OSError):
+        pass
+    return {}
 
 
 def _singularize(word):
@@ -174,16 +197,28 @@ def _compute_backend_hygiene(data, rules):
     return score, checks, dup
 
 
-def _compute_attribute_completeness(data):
-    """属性完整度 (0-1): filled_top10 / expected_top10。"""
+def _compute_attribute_completeness(data, cat_attrs=None):
+    """属性完整度 (0-1): filled_top10 / expected_top10。
+
+    expected 优先级：用户传入 (user_provided) > 类目文件兜底 (builtin_fallback，
+    公开版大类近似 → 分数为参考值) > 无基准 (no_reference → None，降级不记 0 分：
+    0 分是「确认缺失」，None 是「无法评估」)。
+    """
     filled = data.get("attributes_filled") or []
-    expected = data.get("attributes_top10_expected") or []
+    expected = list(data.get("attributes_top10_expected") or [])
+    if expected:
+        basis = "user_provided"
+    else:
+        expected = list((cat_attrs or {}).get("top10_attributes") or [])
+        basis = "builtin_fallback" if expected else "no_reference"
     if not expected:
-        return 0.0, 0, 0
-    filled_set = {f for f in filled if f}
-    inter = filled_set & set(expected)
-    ratio = len(inter) / len(expected)
-    return ratio, len(inter), len(expected)
+        return None, 0, 0, basis
+    # 属性名大小写归一（filled 常见 "Color"，清单为 "color"）
+    filled_set = {str(f).strip().lower() for f in filled if f}
+    expected_set = {str(e).strip().lower() for e in expected}
+    inter = filled_set & expected_set
+    ratio = len(inter) / len(expected_set)
+    return ratio, len(inter), len(expected), basis
 
 
 def _compute_effective_index_terms(data):
@@ -273,10 +308,11 @@ def run(data):
           effective_index_terms(int), risks(list)。
     """
     rules = _load_rules()
+    cat_attrs = _load_category_attrs(data.get("category"))
 
     core_kw = _compute_core_keyword_position(data, rules)
     backend_score, backend_checks, backend_dup = _compute_backend_hygiene(data, rules)
-    attr_ratio, attr_filled, attr_expected = _compute_attribute_completeness(data)
+    attr_ratio, attr_filled, attr_expected, attr_basis = _compute_attribute_completeness(data, cat_attrs)
     eff_count, _ = _compute_effective_index_terms(data)
 
     # 核心词前置度 → 0-1 子分
@@ -292,22 +328,42 @@ def run(data):
 
     eff_score = min(eff_count / EFFECTIVE_TERMS_TARGET, 1.0)
 
-    score = (
-        core_kw_score * W_CORE_KW
-        + backend_score * W_BACKEND
-        + attr_ratio * W_ATTR
-        + eff_score * W_TERMS
-    ) * 100
+    if attr_ratio is None:
+        # 无基准：数据不足≠缺失，该子项退出加权、剩余权重归一
+        denom = W_CORE_KW + W_BACKEND + W_TERMS
+        score = (
+            core_kw_score * W_CORE_KW
+            + backend_score * W_BACKEND
+            + eff_score * W_TERMS
+        ) / denom * 100
+    else:
+        score = (
+            core_kw_score * W_CORE_KW
+            + backend_score * W_BACKEND
+            + attr_ratio * W_ATTR
+            + eff_score * W_TERMS
+        ) * 100
     score = round(score)
 
     risks = _detect_risks(data, core_kw, backend_checks, backend_dup, attr_ratio)
+    if attr_basis == "builtin_fallback":
+        risks.append({
+            "cause": "attribute_reference_fallback",
+            "detail": "expected top10 from builtin broad-category list — score is a reference value; verify via Seller Central export or storefront facet filters",
+        })
+    elif attr_ratio is None:
+        risks.append({
+            "cause": "attribute_no_reference",
+            "detail": "no expected top10 available — attribute dimension excluded from scoring; supply Seller Central export or category facet filters to unlock",
+        })
 
     return {
         # 必填字段
         "score": score,
         "core_keyword_position": core_kw["position"],
         "backend_hygiene": round(backend_score, 2),
-        "attribute_completeness": round(attr_ratio, 2),
+        "attribute_completeness": None if attr_ratio is None else round(attr_ratio, 2),
+        "attribute_basis": attr_basis,
         "effective_index_terms": eff_count,
         "risks": risks,
         # 诊断扩展字段

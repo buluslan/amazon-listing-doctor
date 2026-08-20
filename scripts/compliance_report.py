@@ -606,6 +606,25 @@ def run(data):
                 "source": "cdq",
                 "action": f"CDQ 子分 {u['field']} 降级：{u['reason']}",
             })
+    # 属性期望清单来自内置兜底 → 分数为参考值，提示补实测（user_provided 不提示）
+    attr_bases = set()
+    try:
+        sa = (cdq_out.get("components") or {}).get("structured_attribute") or {}
+        if sa.get("basis") == "builtin_fallback":
+            attr_bases.add("CDQ")
+    except (AttributeError, TypeError):
+        pass
+    if isinstance(idx_out, dict) and idx_out.get("attribute_basis") == "builtin_fallback":
+        attr_bases.add("A9")
+    if attr_bases:
+        degraded.append({
+            "source": "attributes",
+            "action": (
+                f"{'/'.join(sorted(attr_bases))} 属性评分基于内置大类清单（参考值）——"
+                "未经子品类校准，X/10 不作官方口径；"
+                "补齐方式：Seller Central 导出属性面板，或以前台类目筛选器实测为准"
+            ),
+        })
     actions = degraded + actions
 
     total_score = 0
