@@ -13,7 +13,7 @@ allowed-tools:
   - Edit
 metadata:
   category: ecommerce/amazon
-  version: 0.4.8
+  version: 0.4.12
   markets: [US, UK, DE, FR, IT, ES, JP, CA, AU]
 ---
 

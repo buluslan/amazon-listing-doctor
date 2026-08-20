@@ -14,7 +14,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-0.4.8-black.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.12-black.svg)]()
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](README_EN.md)
 
 **CDQ 质量分 · A9 收录 · COSMO 意图覆盖 · Alexa 可发现性 · 合规体检 · 标题词组分诊**
